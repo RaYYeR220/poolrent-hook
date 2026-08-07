@@ -12,15 +12,9 @@ bytecode_hash = "none"
 cbor_metadata = false
 ffi = false
 fs_permissions = [{ access = "read", path = "./out" }]
-remappings = [
-  "@uniswap/v4-core/=lib/v4-core/",
-  "@uniswap/v4-periphery/=lib/v4-periphery/",
-  "v4-periphery/=lib/v4-periphery/",
-  "@openzeppelin/uniswap-hooks/=lib/uniswap-hooks/",
-  "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
-  "forge-std/=lib/forge-std/src/",
-  "solmate/=lib/v4-core/lib/solmate/",
-]
+# Import mappings live in remappings.txt at the repository root.
+# The Programmable review-target scanner requires the canonical mapping set there and
+# rejects a foundry.toml that declares `remappings`. Do not move them back inline.
 
 [fuzz]
 runs = 1000

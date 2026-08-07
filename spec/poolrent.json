@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "modelId": "poolrent",
+  "name": "PoolRent",
+  "stage": "prototype",
+  "summary": "The right to set one canonical Uniswap v4 launch pool's LP fee is sold on a continuous, permissionless rent auction, and the rent is paid to that pool's liquidity providers.",
+  "chain": { "chainId": 1, "network": "ethereum" },
+  "pool": {
+    "currencies": "sorted(launchedToken, weth9)",
+    "quoteAsset": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "feeField": "LPFeeLibrary.DYNAMIC_FEE_FLAG",
+    "tickSpacing": 60,
+    "canonical": true,
+    "alternativePools": "rejected-at-beforeInitialize"
+  },
+  "hook": {
+    "address": "mined-at-launch",
+    "permissionMask": "0x30CC",
+    "permissions": [
+      "beforeInitialize",
+      "afterInitialize",
+      "beforeSwap",
+      "beforeSwapReturnDelta",
+      "afterSwap",
+      "afterSwapReturnDelta"
+    ],
+    "poolManager": "0x000000000004444c5dc75cB358380D2e3dE08A90",
+    "hookData": "unused",
+    "directPoolManagerCalls": ["donate", "take", "sync", "settle"],
+    "neverCalls": ["swap", "modifyLiquidity"],
+    "upgradeable": false,
+    "sharedAcrossPools": false
+  },
+  "programmableFee": {
+    "policyId": "programmable-volume-fee-v1",
+    "policyVersion": "1.0.0",
+    "unit": "hundredths-of-bip",
+    "selected": 2000,
+    "effective": 2000,
+    "platform": 1000,
+    "project": 1000,
+    "formula": "effective=max(selected,1000);platform=1000;project=effective-1000",
+    "owner": "0x4957f49620AFf3Adbbe8195a4f633E49cc93376c",
+    "basis": "executed-gross-quote-side-volume",
+    "collectionPath": "quadrant-dependent-swap-return-delta",
+    "swapModePaths": {
+      "zeroForOneExactInput": "after-swap-return-delta",
+      "zeroForOneExactOutput": "before-swap-return-delta",
+      "oneForZeroExactInput": "before-swap-return-delta",
+      "oneForZeroExactOutput": "after-swap-return-delta"
+    },
+    "rounding": {
+      "carvedFromGross": "down",
+      "grossedOntoNet": "up",
+      "platformShare": "up"
+    },
+    "partialFill": {
+      "afterSwapQuadrants": "charged-on-executed-amount",
+      "beforeSwapQuadrants": "rejected"
+    },
+    "selfCallPolicy": "same-pool-swap-forbidden",
+    "accrualMode": "claimable-liability",
+    "liabilityKeyDimensions": ["poolId", "currency", "owner"],
+    "crossPoolNetting": false,
+    "valueFlowId": "programmable-volume-fee-accrual",
+    "collectionEvent": "FeeAccrued(bytes32,address,address,uint256)",
+    "claimEvent": "FeeClaimed(bytes32,address,address,address,uint256)"
+  },
+  "lpFee": {
+    "mode": "dynamic",
+    "applicationMode": "before-swap-override",
+    "initial": 3000,
+    "minimum": 100,
+    "maximum": 20000,
+    "recipient": "pool-liquidity-providers",
+    "setBy": "current-auction-manager",
+    "initializationPath": "afterInitialize-updateDynamicLPFee",
+    "vacantSeatBehaviour": "stored-default-applies"
+  },
+  "auction": {
+    "bidAsset": "weth9",
+    "minRentPerBlock": "1e9",
+    "minTenureBlocks": 100,
+    "minDepositBlocks": 100,
+    "outbidPercent": 110,
+    "entryRentBlocks": 1,
+    "depositFloorCheckedAfterEntryPayment": true,
+    "tenureRestartsOnlyOnHandover": true,
+    "managerShareInEntryBlock": "donated-to-liquidity-providers",
+    "lpFeeOnHandover": "reset-to-default",
+    "evictionOnExhaustion": "automatic-constant-time",
+    "rentDistribution": "PoolManager.donate to in-range liquidity",
+    "rentWhenNoInRangeLiquidity": "carried-in-pendingRent",
+    "minDonation": "1e9"
+  },
+  "solvency": {
+    "equation": "WETH.balanceOf(hook) >= totalDeposits + pendingRent + totalFeeOwed",
+    "namespaces": ["auction-deposits", "pending-rent", "fee-liabilities"],
+    "netting": "never"
+  },
+  "authorities": [
+    {
+      "role": "programmable-fee-owner",
+      "holder": "0x4957f49620AFf3Adbbe8195a4f633E49cc93376c",
+      "capabilities": ["claim-own-liability-to-destination-chosen-per-claim"],
+      "mutable": false
+    },
+    {
+      "role": "pool-manager",
+      "holder": "current-auction-winner",
+      "capabilities": ["set-lp-fee-within-immutable-bounds", "claim-own-liability"],
+      "mutable": true,
+      "mutationController": "permissionless-rent-auction"
+    }
+  ],
+  "absent": [
+    "admin",
+    "owner",
+    "guardian",
+    "pause",
+    "upgrade",
+    "rescue",
+    "sweep",
+    "mint",
+    "blacklist",
+    "oracle",
+    "keeper",
+    "cross-chain",
+    "custom-curve",
+    "async-swap",
+    "transfer-tax",
+    "hook-held-liquidity-position"
+  ],
+  "sources": [
+    "src/PoolRentHook.sol",
+    "src/PoolRentLauncher.sol",
+    "src/PoolRentToken.sol",
+    "src/libraries/PoolRentMath.sol"
+  ],
+  "build": {
+    "solidity": "0.8.26",
+    "evmVersion": "cancun",
+    "optimizer": true,
+    "optimizerRuns": 1000,
+    "viaIR": false,
+    "metadataBytecodeHash": "none",
+    "cborMetadata": false,
+    "ffi": false
+  }
+}

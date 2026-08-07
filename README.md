@@ -108,6 +108,12 @@ setting a fee, rent accrual, donation, and the owner claim — against the real 
 PoolManager at `0x000000000004444c5dc75cB358380D2e3dE08A90` and the real WETH9, both pinned to an
 exact block and against the current head.
 
+153 tests across eight suites: the launch and pool-admission checks, the lifecycle smoke tests, the
+volume-fee policy, the rent auction and its authority boundaries, 22 fuzz properties at 1000 runs
+each, 9 stateful invariants at 256 runs and depth 64 (16,384 calls each, zero wei left unattributed),
+and the two fork suites. Boundaries are asserted on both sides — the block a tenure becomes
+contestable, the wei at which a deposit is too small, the percentage at which an outbid is accepted.
+
 Build lock: solc `0.8.26`, EVM Cancun, optimizer on at 1000 runs, no viaIR, no bytecode metadata.
 Dependencies are pinned by commit as git submodules.
 
