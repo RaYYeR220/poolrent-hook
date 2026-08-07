@@ -121,15 +121,12 @@ contract PoolRentHook is BaseHook {
     mapping(address beneficiary => uint256 amount) public feeOwed;
     uint256 public totalFeeOwed;
 
-    /// @dev Transient slot holding the charge already taken in `beforeSwap` for the swap in flight.
-    ///      keccak256("poolrent.pendingBeforeFee") - 1
-    bytes32 private constant PENDING_BEFORE_FEE_SLOT =
-        0x6d1e1a2f1d0f0ba7f2b4e0d4b0d1c8a6f1f7c6a1d0f2b1c3d4e5f60718293a4b;
-
-    /// @dev Transient slot holding the amount the AMM was expected to execute, for partial-fill rejection.
-    ///      keccak256("poolrent.expectedExecuted") - 1
-    bytes32 private constant EXPECTED_EXECUTED_SLOT =
-        0x1c9f7d5b3a1e0c8d6b4a2f0e9d7c5b3a1f0e8d6c4b2a0f9e7d5c3b1a0f8e6d5c;
+    /// @dev Carries the charge taken in `beforeSwap` across to `afterSwap` for the swap in flight,
+    ///      together with the amount the AMM was expected to execute so a partial fill can be
+    ///      rejected. Both are written and cleared inside a single swap, so they are always zero
+    ///      between transactions; a reverted swap rolls them back with everything else.
+    uint256 private _pendingBeforeFee;
+    uint256 private _expectedExecuted;
 
     /* -------------------------------------------------------------------------- */
     /*                                    Events                                   */
@@ -279,11 +276,11 @@ contract PoolRentHook is BaseHook {
                 fee = specified.feeOnNet(TOTAL_FEE);
                 executed = specified + fee;
             }
-            _tstore(PENDING_BEFORE_FEE_SLOT, fee);
-            _tstore(EXPECTED_EXECUTED_SLOT, executed);
-        } else {
-            _tstore(PENDING_BEFORE_FEE_SLOT, 0);
-            _tstore(EXPECTED_EXECUTED_SLOT, 0);
+            _pendingBeforeFee = fee;
+            _expectedExecuted = executed;
+        } else if (_pendingBeforeFee != 0 || _expectedExecuted != 0) {
+            _pendingBeforeFee = 0;
+            _expectedExecuted = 0;
         }
 
         uint24 lpFeeOverride = manager == address(0) ? 0 : managerLpFee | LPFeeLibrary.OVERRIDE_FEE_FLAG;
@@ -307,13 +304,13 @@ contract PoolRentHook is BaseHook {
 
         int128 quoteDelta = quoteIsCurrency1 ? delta.amount1() : delta.amount0();
 
-        uint256 beforeFee = _tload(PENDING_BEFORE_FEE_SLOT);
+        uint256 beforeFee = _pendingBeforeFee;
         uint256 afterFee = 0;
 
         if (quoteIsSpecified) {
             // The charge was already taken. Reject a partial fill rather than charge a trader for
             // volume the pool never executed.
-            uint256 expected = _tload(EXPECTED_EXECUTED_SLOT);
+            uint256 expected = _expectedExecuted;
             uint256 actual = quoteDelta < 0 ? uint256(uint128(-quoteDelta)) : uint256(uint128(quoteDelta));
             if (actual != expected) revert PartialFillRejected();
         } else if (quoteDelta > 0) {
@@ -324,8 +321,10 @@ contract PoolRentHook is BaseHook {
             afterFee = uint256(uint128(-quoteDelta)).feeOnNet(TOTAL_FEE);
         }
 
-        _tstore(PENDING_BEFORE_FEE_SLOT, 0);
-        _tstore(EXPECTED_EXECUTED_SLOT, 0);
+        if (beforeFee != 0) {
+            _pendingBeforeFee = 0;
+            _expectedExecuted = 0;
+        }
 
         uint256 totalFee = beforeFee + afterFee;
         if (totalFee != 0) {
@@ -585,17 +584,5 @@ contract PoolRentHook is BaseHook {
     function _quoteIsSpecified(bool zeroForOne, bool exactInput) private view returns (bool) {
         bool specifiedIsCurrency1 = exactInput ? !zeroForOne : zeroForOne;
         return specifiedIsCurrency1 == quoteIsCurrency1;
-    }
-
-    function _tstore(bytes32 slot, uint256 value) private {
-        assembly ("memory-safe") {
-            tstore(slot, value)
-        }
-    }
-
-    function _tload(bytes32 slot) private view returns (uint256 value) {
-        assembly ("memory-safe") {
-            value := tload(slot)
-        }
     }
 }

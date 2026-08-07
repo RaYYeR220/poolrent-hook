@@ -11,6 +11,8 @@ via_ir = false
 bytecode_hash = "none"
 cbor_metadata = false
 ffi = false
+auto_detect_remappings = false
+auto_detect_solc = false
 fs_permissions = [{ access = "read", path = "./out" }]
 # Import mappings live in remappings.txt at the repository root.
 # The Programmable review-target scanner requires the canonical mapping set there and
