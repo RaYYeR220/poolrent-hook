@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "standardVersion": "1.3.0",
-  "submissionHash": "sha256:96105d02891d96c278a16d2a8d4af28b0fd83a997d3e6c0b8b1d8005c3d2a450",
+  "submissionHash": "sha256:7e91e429b335e690f60309879125fa3c2955dfcf3371307da0a85ef25f09812c",
   "closureMethod": "declared-bytes-and-resolved-solidity-and-javascript-imports-v10",
   "closure": {
     "status": "complete",
@@ -519,12 +519,6 @@
       "sha256": "28ac74bdc03d28eb378e23692974d6f34cf3eb64fc45b560420e68c0ef9d690e"
     },
     {
-      "path": "spec/poolrent.json",
-      "kind": "specification",
-      "bytes": 5132,
-      "sha256": "f7451f9f8a7786bcf9a9fd246fee8b069d2641fda01b025fe0bdf3333d604c06"
-    },
-    {
       "path": "src/PoolRentHook.sol",
       "kind": "source-entry",
       "bytes": 28187,
@@ -576,7 +570,7 @@
       "path": "submissions/poolrent/compatibility-report.json",
       "kind": "package:compatibility-report.json",
       "bytes": 10036,
-      "sha256": "db142cc2e84f81ba0eac59865bb73dafa9dae34f39af7647cb64d2ff2c504069"
+      "sha256": "627de6caf5c74770743db0e010b7fc5f331b0d6f81d48d01d8f8a99cb51e9382"
     },
     {
       "path": "submissions/poolrent/evidence/dependency-lock.json",
@@ -609,10 +603,16 @@
       "sha256": "f5fce7cc92a11b854c0c123e470811e36ea4c8a78654cf7a402c8400994a6946"
     },
     {
+      "path": "submissions/poolrent/launch.json",
+      "kind": "specification",
+      "bytes": 6881,
+      "sha256": "e89a4a160712fb8d65f84b6dcb352a5db471de573142569446927c759ace93f3"
+    },
+    {
       "path": "submissions/poolrent/submission.json",
       "kind": "package:submission.json",
-      "bytes": 115931,
-      "sha256": "84f9115c4a58b6edf226a7c6386f9c9f0bba252da41cd863d7e89bc93e294343"
+      "bytes": 115945,
+      "sha256": "6b81bd3948c1be1852c60be665130cca17507cf3432bbafc9e5ad2853074c04d"
     },
     {
       "path": "test/Adversarial.t.sol",
@@ -3347,5 +3347,5 @@
     }
   ],
   "javascriptImportResolutions": [],
-  "reviewTargetHash": "sha256:e9baeca0850529fd433eab8603daf9a9862d0dae010287bc3d826ae0bdf238e0"
+  "reviewTargetHash": "sha256:461d9f3d31b69185395a3728bea2340f87973b1ff810594f9c5db723a17cfd76"
 }

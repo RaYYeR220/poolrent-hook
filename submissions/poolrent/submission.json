@@ -1826,7 +1826,7 @@
     "compilerBuildInfoPaths": [
       "submissions/poolrent/evidence/build-info.json"
     ],
-    "specificationPath": "spec/poolrent.json",
+    "specificationPath": "submissions/poolrent/launch.json",
     "testEvidencePath": "submissions/poolrent/evidence/test-evidence.json",
     "dependencyLockPath": "submissions/poolrent/evidence/dependency-lock.json",
     "gateStatusPath": "submissions/poolrent/evidence/gate-status.json",
