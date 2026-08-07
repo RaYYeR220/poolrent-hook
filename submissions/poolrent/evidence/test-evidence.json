@@ -47,14 +47,14 @@
       "status": "passed",
       "result": {
         "PoolRentHook": {
-          "runtime": 12586,
-          "initcode": 14077,
-          "runtimeMargin": 11990
+          "runtime": 13008,
+          "initcode": 14499,
+          "runtimeMargin": 11568
         },
         "PoolRentLauncher": {
-          "runtime": 23150,
-          "initcode": 23535,
-          "runtimeMargin": 1426
+          "runtime": 23572,
+          "initcode": 23957,
+          "runtimeMargin": 1004
         },
         "PoolRentToken": {
           "runtime": 1875,
@@ -87,17 +87,17 @@
       "status": "passed",
       "result": {
         "suites": 9,
-        "passed": 181,
+        "passed": 208,
         "failed": 0,
         "skipped": 0,
         "bySuite": {
           "LaunchTest": 9,
           "SmokeTest": 8,
-          "FeeTest": 49,
+          "FeeTest": 69,
           "AuctionTest": 47,
           "AdversarialTest": 28,
-          "FuzzTest": 22,
-          "InvariantsTest": 16,
+          "FuzzTest": 25,
+          "InvariantsTest": 20,
           "ForkPinnedTest": 1,
           "ForkHeadTest": 1
         }
@@ -108,7 +108,7 @@
       "command": "forge test --match-contract FuzzTest",
       "status": "passed",
       "result": {
-        "functions": 22,
+        "functions": 25,
         "runsPerFunction": 1000,
         "failed": 0
       }
@@ -118,8 +118,8 @@
       "command": "forge test --match-contract InvariantsTest",
       "status": "passed",
       "result": {
-        "invariants": 9,
-        "explicitRegressions": 7,
+        "invariants": 11,
+        "explicitRegressions": 9,
         "runs": 256,
         "depth": 64,
         "callsPerInvariant": 16384,
@@ -166,16 +166,17 @@
         "detectors": 102,
         "byImpact": {
           "High": 0,
-          "Medium": 7,
+          "Medium": 10,
           "Low": 3,
-          "Informational": 1
+          "Informational": 2
         },
         "byCheck": {
           "incorrect-equality": 3,
           "reentrancy-no-eth": 1,
-          "unused-return": 3,
+          "unused-return": 5,
+          "divide-before-multiply": 1,
           "reentrancy-events": 3,
-          "cyclomatic-complexity": 1
+          "cyclomatic-complexity": 2
         },
         "artifact": "submissions/poolrent/evidence/slither-report.txt",
         "note": "every finding has a written disposition in TEST_PLAN.md"
@@ -211,6 +212,14 @@
           "event-reorg-backfill-freshness-tests"
         ],
         "note": "misbehaving and reentrant quote-token mocks, foreign-PoolManager callback rejection, nested-action settlement, per-entry-point authentication, and a full state reconstruction from emitted events alone"
+      }
+    },
+    {
+      "id": "fee-conformance",
+      "command": "forge test --match-contract FeeTest",
+      "status": "passed",
+      "result": {
+        "note": "Carried-numerator accrual. The reported scenario is pinned verbatim: 1,000 swaps of 499 wei gross pay the immutable owner exactly 499 wei, with the per-swap floor asserted to be zero first. Conservation is asserted as an equality at the library, hook and stateful-invariant levels."
       }
     }
   ],

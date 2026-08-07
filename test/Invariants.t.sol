@@ -23,6 +23,9 @@ contract InvariantsTest is PoolRentFixture {
     ///      bound is zero rather than "some dust". Per-swap rounding lands in the charge, not here.
     uint256 internal constant MAX_UNATTRIBUTED_WEI = 0;
 
+    /// @dev Rate denominator, mirrored from `PoolRentMath` so the carry identities read plainly.
+    uint256 internal constant DENOMINATOR = 1_000_000;
+
     PoolRentHandler internal handler;
     address[] internal actors;
 
@@ -98,15 +101,55 @@ contract InvariantsTest is PoolRentFixture {
         );
     }
 
-    /// @notice The realised charge rate over the whole run sits inside the declared band.
-    /// @dev The exact-output legs round the charge up, which can overshoot by strictly less than one
-    ///      wei of charge per swap; that is the only slack either bound gets.
+    /// @notice The realised charge rate over the whole run is the declared 20 bps exactly, with the
+    ///         sub-wei part accounted for in the two carries rather than rounded off either way.
     function invariant_feeBounds() public view {
         uint256 gross = handler.ghostGrossQuote();
-        uint256 dust = handler.ghostSwaps() * 1e6;
+        uint256 carried = hook.platformFeeCarry() + hook.projectFeeCarry();
 
-        assertLe(handler.ghostCharged() * 1e6, gross * hook.TOTAL_FEE() + dust, "charge above 20 bps");
-        assertGe(2 * handler.ghostPlatformAccrued() * 1e6 + dust, gross * hook.TOTAL_FEE(), "platform below 10 bps");
+        assertEq(
+            handler.ghostCharged() * DENOMINATOR + carried,
+            gross * hook.TOTAL_FEE(),
+            "the realised charge is not the declared rate"
+        );
+        // The mandatory platform entitlement is half of that and is never the side that gives way.
+        assertLe(handler.ghostCharged() * DENOMINATOR, gross * hook.TOTAL_FEE(), "charge above 20 bps");
+        assertGe(
+            handler.ghostPlatformCredited() * DENOMINATOR + DENOMINATOR,
+            gross * hook.PLATFORM_RATE(),
+            "platform below 10 bps"
+        );
+    }
+
+    /// @notice Nothing rounds away. What each beneficiary was credited over the run, plus what its
+    ///         numerator remainder still holds, is exactly what the executed volume earned it.
+    /// @dev This is the property the per-swap floor used to break: a thousand 499-wei swaps carry
+    ///      the same entitlement as one 499,000-wei swap and must pay out the same.
+    function invariant_carryConservation() public view {
+        uint256 gross = handler.ghostGrossQuote();
+
+        assertEq(
+            handler.ghostPlatformCredited() * DENOMINATOR + hook.platformFeeCarry(),
+            gross * hook.PLATFORM_RATE(),
+            "the platform lost or gained entitlement over the run"
+        );
+        assertEq(
+            handler.ghostProjectCredited() * DENOMINATOR + hook.projectFeeCarry(),
+            gross * hook.PROJECT_RATE(),
+            "the project lost or gained entitlement over the run"
+        );
+    }
+
+    /// @notice A carry is a numerator remainder, so it holds less than one whole unit — except for
+    ///         the whole units a clamped charge deliberately parked there, which the next swap pays
+    ///         straight back out. Only a swap ever moves either carry.
+    function invariant_carryBounds() public view {
+        assertEq(handler.ghostChargeMismatch(), 0, "a swap charged more than the carries entitled it to");
+        assertEq(handler.ghostCarryMovedOutsideSwap(), 0, "a carry moved on something that was not a swap");
+
+        uint256 parked = handler.lastClampedUnits() * DENOMINATOR;
+        assertLt(hook.platformFeeCarry(), DENOMINATOR + parked, "platform carry above one whole unit");
+        assertLt(hook.projectFeeCarry(), DENOMINATOR + parked, "project carry above one whole unit");
     }
 
     /// @notice The live LP fee never leaves the immutable bounds, and falls back with no manager.
@@ -299,11 +342,10 @@ contract InvariantsTest is PoolRentFixture {
         _assertSolvent();
     }
 
-    /// @dev The declared per-swap dust is one wei of charge, so splitting a trade into N legs can
-    ///      only ever differ from the aggregate by N wei, and never in the trader's favour.
-    function test_manySmallSwapsMatchOneAggregateSwapWithinDust() public {
+    /// @dev Carrying the numerator makes splitting a trade exactly neutral, not neutral up to dust.
+    function test_manySmallSwapsMatchOneAggregateSwapExactly() public {
         uint256 legs = 20;
-        // A chunk with a remainder against the 20 bps rate, so the floor actually bites.
+        // A chunk with a remainder against both rates, so a per-swap floor would actually bite.
         uint256 chunk = 1e17 + 499;
 
         // With a manager seated past its entry block the whole charge lands in `feeOwed`.
@@ -315,14 +357,72 @@ contract InvariantsTest is PoolRentFixture {
             _swap(trader, false, -int256(chunk));
         }
         uint256 split = hook.feeOwed(PROGRAMMABLE_OWNER) + hook.feeOwed(alice);
+        (uint256 splitPlatformCarry, uint256 splitProjectCarry) = _carries();
 
         vm.revertToState(snapshot);
 
         _swap(trader, false, -int256(chunk * legs));
         uint256 aggregate = hook.feeOwed(PROGRAMMABLE_OWNER) + hook.feeOwed(alice);
+        (uint256 wholePlatformCarry, uint256 wholeProjectCarry) = _carries();
 
-        assertLe(split, aggregate, "splitting a trade cost more than the aggregate");
-        assertApproxEqAbs(split, aggregate, legs, "difference above one wei per leg");
+        assertEq(split, aggregate, "splitting a trade changed the entitlement");
+        assertEq(splitPlatformCarry, wholePlatformCarry, "splitting a trade changed the platform remainder");
+        assertEq(splitProjectCarry, wholeProjectCarry, "splitting a trade changed the project remainder");
+        _assertSolvent();
+    }
+
+    /// @dev The maintainer finding this arithmetic exists for. Flooring the rate on every swap makes
+    ///      a long run of sub-wei legs accrue nothing at all; carrying the numerator makes the same
+    ///      volume pay exactly what one aggregate swap pays.
+    function test_aThousandSubWeiSwapsAccrueTheSameAsOneAggregateSwap() public {
+        uint256 legs = 1_000;
+        // 499 wei of gross quote earns 0.499 wei at 10 bps: nothing at all under a per-swap floor.
+        uint256 chunk = 499;
+
+        uint256 snapshot = vm.snapshotState();
+
+        for (uint256 i; i < legs; ++i) {
+            _swap(trader, false, -int256(chunk));
+        }
+        uint256 dripped = hook.feeOwed(PROGRAMMABLE_OWNER);
+        assertEq(dripped, (chunk * legs * hook.PLATFORM_RATE()) / 1e6, "sub-wei legs did not accrue their volume");
+        assertGt(dripped, 0, "the whole entitlement rounded away");
+
+        vm.revertToState(snapshot);
+
+        _swap(trader, false, -int256(chunk * legs));
+        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), dripped, "dripping the volume changed the entitlement");
+        _assertSolvent();
+    }
+
+    /// @dev The one path that puts a whole unit into a carry. A charge that would consume the entire
+    ///      executed amount is clamped, and the withheld units are parked in the remainders rather
+    ///      than dropped, so the next swap pays them straight out and the volume still earns exactly
+    ///      its rate. While they are parked a carry sits at a whole unit, not below one.
+    function test_clampedChargeParksWithheldUnitsInTheCarry() public {
+        // 999 wei of gross earns 0.999 wei on each side: nothing payable, everything carried.
+        _swap(trader, false, -int256(uint256(999)));
+        assertEq(hook.platformFeeCarry(), 999_000, "platform remainder off");
+        assertEq(hook.projectFeeCarry(), 999_000, "project remainder off");
+        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), 0, "a sub-wei leg paid out");
+
+        // One more wei of gross now owes 2 wei, which would consume the whole executed amount.
+        uint256 balanceBefore = weth.balanceOf(address(hook));
+        _swap(trader, false, -int256(uint256(1)));
+
+        assertEq(weth.balanceOf(address(hook)), balanceBefore, "the clamped swap still charged");
+        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), 0, "the clamped swap still credited");
+        assertEq(hook.platformFeeCarry(), DENOMINATOR, "withheld platform unit was dropped");
+        assertEq(hook.projectFeeCarry(), DENOMINATOR, "withheld project unit was dropped");
+
+        // The parked units come straight back out on the next swap that can carry the charge.
+        _swap(trader, false, -int256(uint256(1_000)));
+        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), 2, "the parked unit never arrived");
+        assertLt(hook.platformFeeCarry(), DENOMINATOR, "the remainder did not settle back down");
+        assertLt(hook.projectFeeCarry(), DENOMINATOR, "the remainder did not settle back down");
+
+        // 2_000 wei of gross at 10 bps is exactly 2 wei, and that is what the platform holds.
+        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), (2_000 * hook.PLATFORM_RATE()) / DENOMINATOR, "entitlement lost");
         _assertSolvent();
     }
 
@@ -382,6 +482,10 @@ contract InvariantsTest is PoolRentFixture {
     /// @dev What a challenger has to post: the entry block on top of a full minimum tenure.
     function _entryDeposit(uint256 rentPerBlock) internal view returns (uint256) {
         return rentPerBlock * (hook.MIN_DEPOSIT_BLOCKS() + 1);
+    }
+
+    function _carries() internal view returns (uint256 platformCarry, uint256 projectCarry) {
+        return (hook.platformFeeCarry(), hook.projectFeeCarry());
     }
 
     function _donated(Vm.Log[] memory logs) internal view returns (uint256 total) {

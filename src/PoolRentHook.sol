@@ -54,9 +54,14 @@ contract PoolRentHook is BaseHook {
     ///      the project remainder is 1_000. The charge is never added on top of this total.
     uint256 public constant TOTAL_FEE = 2_000;
 
-    /// @notice Share of `TOTAL_FEE` owned by the Programmable platform, in parts per million.
-    /// @dev 500_000 ppm of 20 bps is exactly the mandatory 10 bps.
-    uint256 public constant PLATFORM_SHARE_PPM = 500_000;
+    /// @notice The mandatory Programmable rate, accrued on its own numerator remainder.
+    uint256 public constant PLATFORM_RATE = 1_000;
+
+    /// @notice The project rate, accrued on its own numerator remainder.
+    /// @dev `PLATFORM_RATE + PROJECT_RATE == TOTAL_FEE`. The two are accrued independently rather
+    ///      than by splitting one rounded total, so neither entitlement can round away and neither
+    ///      depends on the other surviving.
+    uint256 public constant PROJECT_RATE = TOTAL_FEE - PLATFORM_RATE;
 
     /* -------------------------------------------------------------------------- */
     /*                              Auction parameters                             */
@@ -121,11 +126,25 @@ contract PoolRentHook is BaseHook {
     mapping(address beneficiary => uint256 amount) public feeOwed;
     uint256 public totalFeeOwed;
 
+    /// @notice Sub-wei numerator remainder owed to the immutable Programmable owner.
+    /// @dev Scoped to this hook, which serves exactly one canonical pool and one quote currency, so
+    ///      the remainder is inherently keyed by (poolId, currency, owner). It survives every claim:
+    ///      claiming moves `feeOwed`, never this. Ordinarily below `PoolRentMath.DENOMINATOR`; it can
+    ///      reach it when a clamped charge hands a matured unit back, which the next swap pays out.
+    uint256 public platformFeeCarry;
+
+    /// @notice Sub-wei numerator remainder owed to the project side of the charge.
+    /// @dev Conserved independently of the platform remainder and independently of who holds the
+    ///      manager seat: a handover, an eviction and the vacant-seat path all leave it untouched,
+    ///      so volume charged under one manager is never silently forfeited by the next.
+    uint256 public projectFeeCarry;
+
     /// @dev Carries the charge taken in `beforeSwap` across to `afterSwap` for the swap in flight,
     ///      together with the amount the AMM was expected to execute so a partial fill can be
     ///      rejected. Both are written and cleared inside a single swap, so they are always zero
     ///      between transactions; a reverted swap rolls them back with everything else.
     uint256 private _pendingBeforeFee;
+    uint256 private _pendingBeforeGross;
     uint256 private _expectedExecuted;
 
     /* -------------------------------------------------------------------------- */
@@ -159,6 +178,8 @@ contract PoolRentHook is BaseHook {
     error InvalidLpFee();
     error PartialFillRejected();
     error ZeroAddress();
+    error ChargeNotConverged();
+    error ChargeMismatch();
     error DonationMismatch();
     error SettlementMismatch();
 
@@ -265,21 +286,27 @@ contract PoolRentHook is BaseHook {
         uint256 fee = 0;
         if (quoteIsSpecified) {
             uint256 specified = exactInput ? uint256(-params.amountSpecified) : uint256(params.amountSpecified);
+            uint256 gross;
             uint256 executed;
             if (exactInput) {
                 // The gross quote input is known: carve the charge out of it and swap the rest.
-                fee = specified.feeFromGross(TOTAL_FEE);
-                executed = specified - fee;
+                gross = specified;
+                fee = _previewCharge(gross);
+                if (fee >= gross) fee = gross == 0 ? 0 : gross - 1;
+                executed = gross - fee;
             } else {
-                // Only the trader's net quote output is known: gross it up so the charge is on the
-                // executed gross amount, and let the AMM produce the larger amount.
-                fee = specified.feeOnNet(TOTAL_FEE);
-                executed = specified + fee;
+                // Only the trader's net quote output is known, and the charge depends on the gross
+                // it is measured against, so solve for the gross that leaves exactly `specified`.
+                gross = _grossForNet(specified);
+                fee = gross - specified;
+                executed = gross;
             }
             _pendingBeforeFee = fee;
+            _pendingBeforeGross = gross;
             _expectedExecuted = executed;
-        } else if (_pendingBeforeFee != 0 || _expectedExecuted != 0) {
+        } else if (_pendingBeforeFee != 0 || _pendingBeforeGross != 0 || _expectedExecuted != 0) {
             _pendingBeforeFee = 0;
+            _pendingBeforeGross = 0;
             _expectedExecuted = 0;
         }
 
@@ -306,32 +333,40 @@ contract PoolRentHook is BaseHook {
 
         uint256 beforeFee = _pendingBeforeFee;
         uint256 afterFee = 0;
+        uint256 chargedGross = 0;
 
         if (quoteIsSpecified) {
-            // The charge was already taken. Reject a partial fill rather than charge a trader for
-            // volume the pool never executed.
+            // The charge was already sized in beforeSwap. Reject a partial fill rather than charge a
+            // trader for volume the pool never executed.
             uint256 expected = _expectedExecuted;
             uint256 actual = quoteDelta < 0 ? uint256(uint128(-quoteDelta)) : uint256(uint128(quoteDelta));
             if (actual != expected) revert PartialFillRejected();
+            chargedGross = _pendingBeforeGross;
         } else if (quoteDelta > 0) {
-            // The trader receives quote: the executed gross output is known, carve the charge out.
-            afterFee = uint256(uint128(quoteDelta)).feeFromGross(TOTAL_FEE);
+            // The trader receives quote: the executed gross output is known.
+            chargedGross = uint256(uint128(quoteDelta));
+            afterFee = _previewCharge(chargedGross);
+            if (afterFee >= chargedGross) afterFee = chargedGross == 0 ? 0 : chargedGross - 1;
         } else if (quoteDelta < 0) {
-            // The trader pays quote: the executed amount is net of the charge, so gross it up.
-            afterFee = uint256(uint128(-quoteDelta)).feeOnNet(TOTAL_FEE);
+            // The trader pays quote: the executed amount is net of the charge, so solve for the gross.
+            uint256 net = uint256(uint128(-quoteDelta));
+            chargedGross = _grossForNet(net);
+            afterFee = chargedGross - net;
         }
 
-        if (beforeFee != 0) {
-            _pendingBeforeFee = 0;
-            _expectedExecuted = 0;
-        }
+        _pendingBeforeFee = 0;
+        _pendingBeforeGross = 0;
+        _expectedExecuted = 0;
 
         uint256 totalFee = beforeFee + afterFee;
+        if (chargedGross != 0) {
+            // Commit the carried numerators exactly once per swap, against the gross the pool
+            // actually executed, and book both entitlements independently.
+            if (_commitCharge(chargedGross, totalFee) != totalFee) revert ChargeMismatch();
+        }
         if (totalFee != 0) {
-            // Book the liability before touching the PoolManager, then take the matching amount.
             // Both the beforeSwap and the afterSwap portion are credited to this hook once this
             // callback returns, so taking the full amount here nets the hook's delta to zero.
-            _accrueFee(totalFee);
             poolManager.take(_quoteCurrency(), address(this), totalFee);
         }
 
@@ -351,12 +386,62 @@ contract PoolRentHook is BaseHook {
     ///      Excluding the entry block is what stops a bid from being free money: without it, a
     ///      searcher could take a vacant seat, collect the manager share of a swap it front-ran, and
     ///      withdraw its whole deposit, all in one block, having paid rent for no elapsed blocks.
-    function _accrueFee(uint256 amount) private {
-        (uint256 platformAmount, uint256 managerAmount) = amount.splitFee(PLATFORM_SHARE_PPM);
+    /// @dev Both entitlements for `gross`, without writing anything. Used to size a charge before
+    ///      the swap runs and to solve the exact-output gross.
+    function _previewCharge(uint256 gross) private view returns (uint256 charge) {
+        (uint256 platformAmount,) = PoolRentMath.accrue(gross, PLATFORM_RATE, platformFeeCarry);
+        (uint256 projectAmount,) = PoolRentMath.accrue(gross, PROJECT_RATE, projectFeeCarry);
+        charge = platformAmount + projectAmount;
+    }
 
-        feeOwed[PROGRAMMABLE_OWNER] += platformAmount;
-        totalFeeOwed += platformAmount;
-        emit FeeAccrued(PoolId.unwrap(canonicalPoolId), address(quote), PROGRAMMABLE_OWNER, platformAmount);
+    /// @dev The gross that leaves the trader exactly `net` after the charge measured on that gross.
+    ///      The charge is monotonic and tiny relative to the gross, so this settles in a couple of
+    ///      steps; it is bounded and fails closed rather than looping.
+    function _grossForNet(uint256 net) private view returns (uint256 gross) {
+        gross = net + PoolRentMath.feeOnNet(net, TOTAL_FEE);
+        for (uint256 attempt = 0; attempt < 4; ++attempt) {
+            uint256 candidate = net + _previewCharge(gross);
+            if (candidate == gross) return gross;
+            gross = candidate;
+        }
+        if (net + _previewCharge(gross) != gross) revert ChargeNotConverged();
+    }
+
+    /// @dev Commits the carried numerators for one executed gross and books both entitlements.
+    ///      `expectedCharge` is what the swap was settled for; any wei the bound below withholds is
+    ///      returned to the carry rather than dropped, so no entitlement is ever lost.
+    function _commitCharge(uint256 gross, uint256 expectedCharge) private returns (uint256 charge) {
+        (uint256 platformAmount, uint256 platformNext) = PoolRentMath.accrue(gross, PLATFORM_RATE, platformFeeCarry);
+        (uint256 projectAmount, uint256 projectNext) = PoolRentMath.accrue(gross, PROJECT_RATE, projectFeeCarry);
+        charge = platformAmount + projectAmount;
+
+        if (charge > expectedCharge) {
+            // The caller clamped the charge so it could not consume the whole executed amount.
+            // Give the withheld units back to the carry, project side first, so the mandatory
+            // platform entitlement is the last thing ever reduced.
+            uint256 withheld = charge - expectedCharge;
+            uint256 fromProject = withheld > projectAmount ? projectAmount : withheld;
+            projectAmount -= fromProject;
+            projectNext += fromProject * PoolRentMath.DENOMINATOR;
+            withheld -= fromProject;
+            if (withheld != 0) {
+                platformAmount -= withheld;
+                platformNext += withheld * PoolRentMath.DENOMINATOR;
+            }
+            charge = platformAmount + projectAmount;
+        }
+
+        platformFeeCarry = platformNext;
+        projectFeeCarry = projectNext;
+        _bookCharge(platformAmount, projectAmount);
+    }
+
+    function _bookCharge(uint256 platformAmount, uint256 managerAmount) private {
+        if (platformAmount != 0) {
+            feeOwed[PROGRAMMABLE_OWNER] += platformAmount;
+            totalFeeOwed += platformAmount;
+            emit FeeAccrued(PoolId.unwrap(canonicalPoolId), address(quote), PROGRAMMABLE_OWNER, platformAmount);
+        }
 
         if (managerAmount == 0) return;
 

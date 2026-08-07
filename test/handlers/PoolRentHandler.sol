@@ -14,6 +14,7 @@ import {PoolModifyLiquidityTest} from "@uniswap/v4-core/src/test/PoolModifyLiqui
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {PoolRentHook} from "../../src/PoolRentHook.sol";
+import {PoolRentMath} from "../../src/libraries/PoolRentMath.sol";
 
 /// @dev Bounded actor driver for the stateful invariant run.
 ///
@@ -66,6 +67,16 @@ contract PoolRentHandler is CommonBase, StdUtils {
     uint256 public ghostFreeSeatTakeovers;
     /// @notice Manager fee accrued in the very block the seat was taken. Must stay 0.
     uint256 public ghostEntryBlockAccrual;
+    /// @notice A fee carry that moved on anything other than a swap. Must stay 0.
+    uint256 public ghostCarryMovedOutsideSwap;
+    /// @notice Swaps that charged more than the carried numerators entitled them to. Must stay 0.
+    uint256 public ghostChargeMismatch;
+    /// @notice Whole units the most recent swap withheld from its charge and parked in a carry.
+    uint256 public lastClampedUnits;
+    /// @notice Whole units credited to the platform across the run.
+    uint256 public ghostPlatformCredited;
+    /// @notice Whole units credited to the project side across the run.
+    uint256 public ghostProjectCredited;
 
     uint256 public entries;
     uint256 public useful;
@@ -94,9 +105,13 @@ contract PoolRentHandler is CommonBase, StdUtils {
     }
 
     /// @dev Counts the entry and books every move of the platform liability. Only a platform claim
-    ///      may push it down; anything else that does lands in `ghostPlatformBadDecrease`.
-    modifier tracks(bool platformMayDecrease) {
+    ///      may push it down; anything else that does lands in `ghostPlatformBadDecrease`. Only a
+    ///      swap may move a fee carry, so every other action is asserted to leave both alone —
+    ///      that covers claims, handovers, evictions and the vacant seat in one place.
+    modifier tracks(bool platformMayDecrease, bool carriesMayMove) {
         uint256 before = hook.feeOwed(PLATFORM);
+        uint256 platformCarryBefore = hook.platformFeeCarry();
+        uint256 projectCarryBefore = hook.projectFeeCarry();
         entries++;
         _;
         uint256 current = hook.feeOwed(PLATFORM);
@@ -106,19 +121,23 @@ contract PoolRentHandler is CommonBase, StdUtils {
             if (platformMayDecrease) ghostPlatformClaimed += before - current;
             else ghostPlatformBadDecrease += before - current;
         }
+        if (!carriesMayMove) {
+            if (hook.platformFeeCarry() != platformCarryBefore) ghostCarryMovedOutsideSwap++;
+            if (hook.projectFeeCarry() != projectCarryBefore) ghostCarryMovedOutsideSwap++;
+        }
     }
 
     /* ------------------------------- actions ------------------------------ */
 
-    function swapExactInput(uint256 actorSeed, bool zeroForOne, uint256 amount) external tracks(false) {
+    function swapExactInput(uint256 actorSeed, bool zeroForOne, uint256 amount) external tracks(false, true) {
         _swap(_actor(actorSeed), zeroForOne, -int256(bound(amount, 1, 200 ether)));
     }
 
-    function swapExactOutput(uint256 actorSeed, bool zeroForOne, uint256 amount) external tracks(false) {
+    function swapExactOutput(uint256 actorSeed, bool zeroForOne, uint256 amount) external tracks(false, true) {
         _swap(_actor(actorSeed), zeroForOne, int256(bound(amount, 1, 200 ether)));
     }
 
-    function bid(uint256 actorSeed, uint256 rent, uint256 deposit) external tracks(false) {
+    function bid(uint256 actorSeed, uint256 rent, uint256 deposit) external tracks(false, false) {
         address seated = hook.manager();
         // Bid as the incumbent every so often, so the self-bid path is reached as well as handovers.
         address actor = (seated != address(0) && actorSeed % 4 == 0) ? seated : _actor(actorSeed);
@@ -158,7 +177,7 @@ contract PoolRentHandler is CommonBase, StdUtils {
         }
     }
 
-    function topUpDeposit(uint256 actorSeed, uint256 amount) external tracks(false) {
+    function topUpDeposit(uint256 actorSeed, uint256 amount) external tracks(false, false) {
         address actor = _actor(actorSeed);
         uint256 value = bound(amount, 1, 10 ether);
         if (value > quote.balanceOf(actor)) {
@@ -175,7 +194,7 @@ contract PoolRentHandler is CommonBase, StdUtils {
         }
     }
 
-    function withdrawDeposit(uint256 actorSeed, uint256 amount) external tracks(false) {
+    function withdrawDeposit(uint256 actorSeed, uint256 amount) external tracks(false, false) {
         address actor = _actor(actorSeed);
         uint256 balance = hook.deposits(actor);
         if (balance == 0) {
@@ -194,7 +213,7 @@ contract PoolRentHandler is CommonBase, StdUtils {
         }
     }
 
-    function setLpFee(uint256 actorSeed, uint256 lpFee) external tracks(false) {
+    function setLpFee(uint256 actorSeed, uint256 lpFee) external tracks(false, false) {
         address currentManager = hook.manager();
         // Mostly the manager, occasionally an outsider, so the authorisation path is exercised too.
         address who = (currentManager == address(0) || actorSeed % 8 == 0) ? _actor(actorSeed) : currentManager;
@@ -208,7 +227,7 @@ contract PoolRentHandler is CommonBase, StdUtils {
         }
     }
 
-    function addLiquidity(uint256 actorSeed, uint256 liquidity) external tracks(false) {
+    function addLiquidity(uint256 actorSeed, uint256 liquidity) external tracks(false, false) {
         address actor = _actor(actorSeed);
         uint256 value = bound(liquidity, 1e15, 100 ether);
 
@@ -221,7 +240,7 @@ contract PoolRentHandler is CommonBase, StdUtils {
         }
     }
 
-    function removeLiquidity(uint256 actorSeed, uint256 liquidity) external tracks(false) {
+    function removeLiquidity(uint256 actorSeed, uint256 liquidity) external tracks(false, false) {
         address actor = _actor(actorSeed);
         uint256 held = liquidityOf[actor];
         if (held == 0) {
@@ -239,7 +258,7 @@ contract PoolRentHandler is CommonBase, StdUtils {
         }
     }
 
-    function claimFee(uint256 seed, uint256 amount) external tracks(seed % 2 == 0) {
+    function claimFee(uint256 seed, uint256 amount) external tracks(seed % 2 == 0, false) {
         address who = seed % 2 == 0 ? PLATFORM : _actor(seed);
         uint256 owed = hook.feeOwed(who);
         if (owed == 0) {
@@ -258,12 +277,12 @@ contract PoolRentHandler is CommonBase, StdUtils {
         }
     }
 
-    function poke() external tracks(false) {
+    function poke() external tracks(false, false) {
         hook.poke();
         useful++;
     }
 
-    function rollBlocks(uint256 blocks) external tracks(false) {
+    function rollBlocks(uint256 blocks) external tracks(false, false) {
         vm.roll(block.number + bound(blocks, 1, 300));
         useful++;
     }
@@ -277,6 +296,10 @@ contract PoolRentHandler is CommonBase, StdUtils {
         address seated = hook.manager();
         bool entryBlock = seated != address(0) && block.number == hook.tenureStartBlock();
         uint256 seatedFeeBefore = entryBlock ? hook.feeOwed(seated) : 0;
+
+        uint256 platformCarryBefore = hook.platformFeeCarry();
+        uint256 projectCarryBefore = hook.projectFeeCarry();
+        uint256 platformOwedBefore = hook.feeOwed(PLATFORM);
 
         vm.recordLogs();
         vm.prank(actor);
@@ -303,15 +326,35 @@ contract PoolRentHandler is CommonBase, StdUtils {
             }
 
             uint256 charged = balanceAndDonation - before;
+            uint256 gross = _grossQuote(delta, charged);
+
             ghostDonated += donated;
             ghostCharged += charged;
-            ghostGrossQuote += _grossQuote(delta, charged);
+            ghostGrossQuote += gross;
+            ghostPlatformCredited += hook.feeOwed(PLATFORM) - platformOwedBefore;
+            ghostProjectCredited += charged - (hook.feeOwed(PLATFORM) - platformOwedBefore);
+            _bookCarryMove(gross, charged, platformCarryBefore, projectCarryBefore);
             ghostSwaps++;
             useful++;
         } catch {
             vm.getRecordedLogs();
             rejected++;
         }
+    }
+
+    /// @dev Re-derives what the two carried numerators entitled this swap to and compares it with
+    ///      what the hook actually charged. Charging more than the entitlement is a violation;
+    ///      charging less is the documented bound giving whole units back to a carry, so record how
+    ///      many were parked there — that is exactly how far a carry may sit above one whole unit.
+    function _bookCarryMove(uint256 gross, uint256 charged, uint256 platformCarry, uint256 projectCarry) private {
+        if (gross == 0) return;
+
+        (uint256 platformAmount,) = PoolRentMath.accrue(gross, hook.PLATFORM_RATE(), platformCarry);
+        (uint256 projectAmount,) = PoolRentMath.accrue(gross, hook.PROJECT_RATE(), projectCarry);
+        uint256 entitled = platformAmount + projectAmount;
+
+        if (charged > entitled) ghostChargeMismatch++;
+        lastClampedUnits = charged < entitled ? entitled - charged : 0;
     }
 
     /// @dev Executed gross quote-side volume for one swap. When the trader receives quote the AMM

@@ -81,16 +81,75 @@ contract FuzzTest is PoolRentFixture {
         this.callFeeOnNet(net, rate);
     }
 
-    /// @dev The split is exact and the platform is never the one that eats the rounding.
-    function testFuzz_splitFeeSumsExactlyAndNeverShortChangesThePlatform(uint256 fee, uint256 platformPpm) public pure {
-        fee = bound(fee, 0, 1e30);
-        platformPpm = bound(platformPpm, 0, DENOMINATOR);
+    /// @dev The whole point of carrying the numerator: over any sequence of grosses, what was paid
+    ///      out plus what is still carried equals the entitlement the volume earned, to the wei.
+    ///      Per-swap flooring alone loses this the moment a leg is worth less than one wei.
+    function testFuzz_accrueIsLosslessOverASequence(uint256 seed, uint256 rate, uint8 legs) public pure {
+        rate = bound(rate, 1, DENOMINATOR - 1);
+        uint256 count = bound(legs, 1, 64);
 
-        (uint256 platformAmount, uint256 managerAmount) = fee.splitFee(platformPpm);
+        uint256 carry;
+        uint256 paid;
+        uint256 numerator;
 
-        assertEq(platformAmount + managerAmount, fee, "the split did not sum to the charge");
-        assertLe(platformAmount, fee, "the platform took more than the charge");
-        assertGe(platformAmount, (fee * platformPpm) / DENOMINATOR, "the platform fell below its floor");
+        for (uint256 i; i < count; ++i) {
+            seed = uint256(keccak256(abi.encode(seed, i)));
+            // Deliberately weighted towards grosses too small to earn a whole wei on their own.
+            uint256 gross = i % 2 == 0 ? bound(seed, 0, 2_000) : bound(seed, 0, 1e24);
+
+            (uint256 amount, uint256 nextCarry) = PoolRentMath.accrue(gross, rate, carry);
+            assertLt(nextCarry, DENOMINATOR, "carry grew past a whole unit");
+
+            paid += amount;
+            numerator += gross * rate;
+            carry = nextCarry;
+        }
+
+        assertEq(paid * DENOMINATOR + carry, numerator, "the sequence lost or invented entitlement");
+    }
+
+    /// @dev A carry is a numerator remainder, so it never reaches a whole unit, and one swap can
+    ///      never pay out more than its own share plus the single unit the carry was holding.
+    function testFuzz_accrueCarryStaysBelowOneWholeUnit(uint256 gross, uint256 rate, uint256 carry) public pure {
+        gross = bound(gross, 0, 1e30);
+        rate = bound(rate, 0, DENOMINATOR);
+        carry = bound(carry, 0, DENOMINATOR - 1);
+
+        (uint256 amount, uint256 nextCarry) = PoolRentMath.accrue(gross, rate, carry);
+
+        assertLt(nextCarry, DENOMINATOR, "carry reached a whole unit");
+        assertEq(amount * DENOMINATOR + nextCarry, gross * rate + carry, "accrual is not exact");
+        assertGe(amount, (gross * rate) / DENOMINATOR, "accrual fell below the floored share");
+        assertLe(amount, (gross * rate) / DENOMINATOR + 1, "accrual paid out more than the carry held");
+    }
+
+    /// @dev The finding this arithmetic exists for: chopping a volume into pieces must earn exactly
+    ///      what charging it once earns. With the numerator carried, that is an equality, not a bound.
+    function testFuzz_splittingVolumeAccruesExactlyTheSameEntitlement(uint256 total, uint256 pieces, uint256 seed)
+        public
+        view
+    {
+        uint256 volume = bound(total, 0, 1e24);
+        uint256 count = bound(pieces, 1, 32);
+
+        (uint256 whole, uint256 wholeCarry) = PoolRentMath.accrue(volume, hook.PLATFORM_RATE(), 0);
+
+        uint256 carry;
+        uint256 paid;
+        uint256 left = volume;
+        for (uint256 i; i < count; ++i) {
+            seed = uint256(keccak256(abi.encode(seed, i)));
+            uint256 piece = i + 1 == count ? left : bound(seed, 0, left);
+            left -= piece;
+
+            (uint256 amount, uint256 nextCarry) = PoolRentMath.accrue(piece, hook.PLATFORM_RATE(), carry);
+            paid += amount;
+            carry = nextCarry;
+        }
+
+        assertEq(left, 0, "the pieces did not add up to the volume");
+        assertEq(paid, whole, "splitting the volume changed the entitlement");
+        assertEq(carry, wholeCarry, "splitting the volume changed the remainder");
     }
 
     /// @dev The realised rate on both rounding legs sits inside the declared 20 bps band, with at
@@ -117,6 +176,7 @@ contract FuzzTest is PoolRentFixture {
     ///      of it and the trader can never end up with more than the AMM produced.
     function testFuzz_sellTokenExactInputChargesTheGrossOutput(uint256 amountIn) public {
         uint256 size = bound(amountIn, 1, 5_000 ether);
+        (uint256 platformCarry, uint256 projectCarry) = _carries();
         (BalanceDelta delta, uint256 charged) = _swapMeasured(trader, true, -int256(size));
 
         int128 quoteDelta = _quoteDelta(delta);
@@ -125,19 +185,21 @@ contract FuzzTest is PoolRentFixture {
         uint256 received = uint256(uint128(quoteDelta));
         uint256 gross = received + charged;
 
-        assertEq(charged, gross.feeFromGross(hook.TOTAL_FEE()), "charge is not the floor of the gross output");
+        assertEq(charged, _chargeFor(gross, platformCarry, projectCarry), "charge is not what the gross output earned");
         assertLe(received, gross, "trader received more than the AMM produced");
         _assertClean();
     }
 
-    /// @dev zeroForOne exact-output: only the trader's net receipt is known, so the AMM is made to
-    ///      produce the grossed-up amount and the trader still gets exactly what it asked for.
+    /// @dev zeroForOne exact-output: only the trader's net receipt is known, so the hook solves for
+    ///      the gross whose own charge leaves exactly that net, and the trader gets exactly it.
     function testFuzz_buyQuoteExactOutputGrossesUpTheCharge(uint256 amountOut) public {
         uint256 size = bound(amountOut, 1, 1_000 ether);
+        (uint256 platformCarry, uint256 projectCarry) = _carries();
         (BalanceDelta delta, uint256 charged) = _swapMeasured(trader, true, int256(size));
 
         assertEq(_quoteDelta(delta), int256(size), "trader did not receive exactly what it asked for");
-        assertEq(charged, size.feeOnNet(hook.TOTAL_FEE()), "charge was not grossed up off the net receipt");
+        // The solved gross round-trips: its charge is exactly the difference back to the net.
+        assertEq(charged, _chargeFor(size + charged, platformCarry, projectCarry), "the solved gross does not close");
         _assertClean();
     }
 
@@ -145,27 +207,27 @@ contract FuzzTest is PoolRentFixture {
     ///      of it and the AMM only ever swaps the remainder.
     function testFuzz_payQuoteExactInputCarvesOutTheCharge(uint256 amountIn) public {
         uint256 size = bound(amountIn, 1, 1_000 ether);
+        (uint256 platformCarry, uint256 projectCarry) = _carries();
         (BalanceDelta delta, uint256 charged) = _swapMeasured(trader, false, -int256(size));
 
         assertEq(_quoteDelta(delta), -int256(size), "trader paid something other than the amount it specified");
-        assertEq(charged, size.feeFromGross(hook.TOTAL_FEE()), "charge is not the floor of the gross input");
+        assertEq(charged, _chargeFor(size, platformCarry, projectCarry), "charge is not what the gross input earned");
         assertGe(_tokenDelta(delta), 0, "buyer paid token");
         _assertClean();
     }
 
     /// @dev oneForZero exact-output: the trader gets exactly the token it asked for and pays the
-    ///      executed quote amount grossed up by the charge.
+    ///      executed quote amount grossed up by the charge measured on that same gross.
     function testFuzz_buyTokenExactOutputGrossesUpTheCharge(uint256 amountOut) public {
         uint256 size = bound(amountOut, 1, 1_000 ether);
+        (uint256 platformCarry, uint256 projectCarry) = _carries();
         (BalanceDelta delta, uint256 charged) = _swapMeasured(trader, false, int256(size));
 
         assertEq(_tokenDelta(delta), int256(size), "trader did not receive exactly the token it asked for");
 
         uint256 paid = uint256(uint128(-_quoteDelta(delta)));
         assertGe(paid, charged, "the charge exceeded what the trader paid");
-        assertEq(
-            charged, (paid - charged).feeOnNet(hook.TOTAL_FEE()), "charge was not grossed up off the executed amount"
-        );
+        assertEq(charged, _chargeFor(paid, platformCarry, projectCarry), "the solved gross does not close");
         _assertClean();
     }
 
@@ -174,44 +236,89 @@ contract FuzzTest is PoolRentFixture {
         uint256 size = bound(amount, 1, 500 ether);
         int256 specified = exactInput ? -int256(size) : int256(size);
 
+        (uint256 platformCarry, uint256 projectCarry) = _carries();
         (BalanceDelta delta, uint256 charged) = _swapMeasured(trader, zeroForOne, specified);
 
         assertEq(token.balanceOf(address(hook)), 0, "the hook took the token side");
-        _assertChargeMatchesQuadrant(zeroForOne, exactInput, size, delta, charged);
+        _assertChargeMatchesQuadrant(zeroForOne, exactInput, size, delta, charged, platformCarry, projectCarry);
         _assertClean();
     }
 
-    /// @dev The charge splits into the immutable platform liability and the seated manager's, with
-    ///      the platform taking the rounding.
-    function testFuzz_chargeSplitsBetweenPlatformAndManager(uint256 amount, uint256 rent) public {
+    /// @dev The hook-level restatement of the accrual identity: over an arbitrary run of swaps in
+    ///      arbitrary quadrants, what each beneficiary was credited plus what its remainder still
+    ///      holds equals exactly what the executed volume earned it. Nothing rounds away.
+    function testFuzz_carriesNeverLoseEntitlementAcrossASwapSequence(uint256 seed, uint8 legs) public {
+        uint256 count = bound(legs, 1, 24);
+        uint256 grossVolume;
+        uint256 totalCharged;
+
+        for (uint256 i; i < count; ++i) {
+            seed = uint256(keccak256(abi.encode(seed, i)));
+            bool zeroForOne = seed % 2 == 0;
+            bool exactInput = (seed >> 1) % 2 == 0;
+            // Weighted small so legs that earn less than a whole wei on their own are common.
+            uint256 size = seed % 3 == 0 ? bound(seed, 1, 4_000) : bound(seed, 1, 50 ether);
+
+            (BalanceDelta delta, uint256 charged) =
+                _swapMeasured(trader, zeroForOne, exactInput ? -int256(size) : int256(size));
+            grossVolume += _grossOf(delta, charged);
+            totalCharged += charged;
+            _assertClean();
+        }
+
+        uint256 platformCredited = hook.feeOwed(PROGRAMMABLE_OWNER);
+        // With no manager seated the project entitlement is donated or still pending, never owed.
+        uint256 projectCredited = totalCharged - platformCredited;
+
+        assertEq(
+            platformCredited * DENOMINATOR + hook.platformFeeCarry(),
+            grossVolume * hook.PLATFORM_RATE(),
+            "the platform lost or gained entitlement over the run"
+        );
+        assertEq(
+            projectCredited * DENOMINATOR + hook.projectFeeCarry(),
+            grossVolume * hook.PROJECT_RATE(),
+            "the project lost or gained entitlement over the run"
+        );
+    }
+
+    /// @dev The two entitlements accrue independently off the same executed gross, each against its
+    ///      own remainder, so neither depends on the other surviving a rounding.
+    function testFuzz_chargeAccruesToPlatformAndManagerIndependently(uint256 amount, uint256 rent) public {
         uint128 rentPerBlock = uint128(bound(rent, hook.MIN_RENT_PER_BLOCK(), 1e15));
         _becomeManager(alice, rentPerBlock, _entryDeposit(rentPerBlock));
         // Volume in the entry block belongs to the liquidity providers, so step past it.
         vm.roll(block.number + 1);
 
         uint256 size = bound(amount, 1e12, 500 ether);
+        (uint256 platformCarry, uint256 projectCarry) = _carries();
         (, uint256 charged) = _swapMeasured(trader, false, -int256(size));
 
-        (uint256 platformAmount, uint256 managerAmount) = charged.splitFee(hook.PLATFORM_SHARE_PPM());
+        (uint256 platformAmount, uint256 platformNext) = PoolRentMath.accrue(size, hook.PLATFORM_RATE(), platformCarry);
+        (uint256 managerAmount, uint256 projectNext) = PoolRentMath.accrue(size, hook.PROJECT_RATE(), projectCarry);
 
-        assertEq(platformAmount + managerAmount, charged, "the split did not sum to the charge");
-        assertGe(platformAmount, managerAmount, "the platform ate the rounding");
+        assertEq(platformAmount + managerAmount, charged, "the two entitlements did not sum to the charge");
         assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), platformAmount, "platform liability off");
         assertEq(hook.feeOwed(alice), managerAmount, "manager liability off");
+        assertEq(hook.platformFeeCarry(), platformNext, "platform remainder off");
+        assertEq(hook.projectFeeCarry(), projectNext, "project remainder off");
         _assertClean();
     }
 
     /// @dev The entry block is the seat's, not the searcher's: the charge is the same but the
-    ///      manager half is routed to the liquidity providers instead of to a fresh manager.
+    ///      project entitlement is routed to the liquidity providers instead of a fresh manager.
     function testFuzz_entryBlockChargeGoesToLiquidityProvidersNotTheNewManager(uint256 amount, uint256 rent) public {
         uint128 rentPerBlock = uint128(bound(rent, hook.MIN_RENT_PER_BLOCK(), 1e15));
         _becomeManager(alice, rentPerBlock, _entryDeposit(rentPerBlock));
 
         uint256 size = bound(amount, 1e12, 500 ether);
+        (uint256 platformCarry, uint256 projectCarry) = _carries();
         (, uint256 charged) = _swapMeasured(trader, false, -int256(size));
 
-        (uint256 platformAmount, uint256 managerAmount) = charged.splitFee(hook.PLATFORM_SHARE_PPM());
+        (uint256 platformAmount,) = PoolRentMath.accrue(size, hook.PLATFORM_RATE(), platformCarry);
+        (uint256 managerAmount,) = PoolRentMath.accrue(size, hook.PROJECT_RATE(), projectCarry);
 
+        assertEq(platformAmount + managerAmount, charged, "the two entitlements did not sum to the charge");
         assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), platformAmount, "platform liability off");
         assertEq(hook.feeOwed(alice), 0, "the entry block paid the fresh manager");
         assertEq(_lastDonated + hook.pendingRent(), managerAmount + rentPerBlock, "manager share missed the providers");
@@ -243,33 +350,8 @@ contract FuzzTest is PoolRentFixture {
         uint256 rejected;
 
         for (uint256 i; i < 4; ++i) {
-            bool zeroForOne = i % 2 == 0;
-            bool exactInput = i < 2;
-            int256 specified = exactInput ? -int256(size) : int256(size);
-
-            uint256 feesBefore = hook.totalFeeOwed();
-            uint256 balanceBefore = weth.balanceOf(address(hook));
-
-            vm.recordLogs();
-            vm.prank(trader);
-            try swapRouter.swap(
-                key,
-                SwapParams({zeroForOne: zeroForOne, amountSpecified: specified, sqrtPriceLimitX96: limit}),
-                PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
-                ""
-            ) returns (
-                BalanceDelta delta
-            ) {
-                uint256 donated = _donated(vm.getRecordedLogs());
-                uint256 charged = weth.balanceOf(address(hook)) + donated - balanceBefore;
-                _assertChargeMatchesQuadrant(zeroForOne, exactInput, size, delta, charged);
-                executed++;
-            } catch {
-                vm.getRecordedLogs();
-                assertEq(hook.totalFeeOwed(), feesBefore, "a rejected swap moved the books");
-                assertEq(weth.balanceOf(address(hook)), balanceBefore, "a rejected swap moved value");
-                rejected++;
-            }
+            if (_swapUnderLimit(i % 2 == 0, i < 2, size, limit)) executed++;
+            else rejected++;
             _assertClean();
         }
 
@@ -504,29 +586,81 @@ contract FuzzTest is PoolRentFixture {
         return rentPerBlock * (hook.MIN_DEPOSIT_BLOCKS() + 1);
     }
 
+    function _carries() internal view returns (uint256 platformCarry, uint256 projectCarry) {
+        return (hook.platformFeeCarry(), hook.projectFeeCarry());
+    }
+
+    /// @dev One quadrant against a caller-supplied price limit. Returns whether it executed; a
+    ///      rejection has to leave every book and both remainders exactly where they were.
+    function _swapUnderLimit(bool zeroForOne, bool exactInput, uint256 size, uint160 limit) private returns (bool) {
+        uint256 feesBefore = hook.totalFeeOwed();
+        uint256 balanceBefore = weth.balanceOf(address(hook));
+        (uint256 platformCarry, uint256 projectCarry) = _carries();
+
+        vm.recordLogs();
+        vm.prank(trader);
+        try swapRouter.swap(
+            key,
+            SwapParams({
+                zeroForOne: zeroForOne,
+                amountSpecified: exactInput ? -int256(size) : int256(size),
+                sqrtPriceLimitX96: limit
+            }),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            ""
+        ) returns (
+            BalanceDelta delta
+        ) {
+            uint256 charged =
+                weth.balanceOf(address(hook)) + _donated(vm.getRecordedLogs()) - balanceBefore;
+            _assertChargeMatchesQuadrant(zeroForOne, exactInput, size, delta, charged, platformCarry, projectCarry);
+            return true;
+        } catch {
+            vm.getRecordedLogs();
+            assertEq(hook.totalFeeOwed(), feesBefore, "a rejected swap moved the books");
+            assertEq(weth.balanceOf(address(hook)), balanceBefore, "a rejected swap moved value");
+            assertEq(hook.platformFeeCarry(), platformCarry, "a rejected swap moved the platform remainder");
+            assertEq(hook.projectFeeCarry(), projectCarry, "a rejected swap moved the project remainder");
+            return false;
+        }
+    }
+
+    /// @dev What the hook owes on one executed gross, given the remainders it started the swap with.
+    function _chargeFor(uint256 gross, uint256 platformCarry, uint256 projectCarry) internal view returns (uint256) {
+        (uint256 platformAmount,) = PoolRentMath.accrue(gross, hook.PLATFORM_RATE(), platformCarry);
+        (uint256 projectAmount,) = PoolRentMath.accrue(gross, hook.PROJECT_RATE(), projectCarry);
+        return platformAmount + projectAmount;
+    }
+
+    /// @dev The executed gross the charge was measured on, whichever quadrant produced it. When the
+    ///      trader receives quote the AMM produced its receipt plus the charge; when it pays quote it
+    ///      already paid the gross.
+    function _grossOf(BalanceDelta delta, uint256 charged) internal view returns (uint256) {
+        int128 quoteDelta = _quoteDelta(delta);
+        if (quoteDelta > 0) return uint256(uint128(quoteDelta)) + charged;
+        return uint256(uint128(-quoteDelta));
+    }
+
     function _assertChargeMatchesQuadrant(
         bool zeroForOne,
         bool exactInput,
         uint256 size,
         BalanceDelta delta,
-        uint256 charged
+        uint256 charged,
+        uint256 platformCarry,
+        uint256 projectCarry
     ) internal view {
-        uint256 rate = hook.TOTAL_FEE();
         int128 quoteDelta = _quoteDelta(delta);
 
-        if (zeroForOne && exactInput) {
-            uint256 gross = uint256(uint128(quoteDelta)) + charged;
-            assertEq(charged, gross.feeFromGross(rate), "gross-output charge off");
-        } else if (zeroForOne) {
+        // The specified-quote quadrants pay or receive exactly what they asked for; the charge is
+        // always measured against the gross the pool actually executed.
+        if (zeroForOne && !exactInput) {
             assertEq(quoteDelta, int256(size), "exact-output receipt off");
-            assertEq(charged, size.feeOnNet(rate), "grossed-up charge off");
-        } else if (exactInput) {
+        } else if (!zeroForOne && exactInput) {
             assertEq(quoteDelta, -int256(size), "exact-input payment off");
-            assertEq(charged, size.feeFromGross(rate), "gross-input charge off");
-        } else {
-            uint256 paid = uint256(uint128(-quoteDelta));
-            assertEq(charged, (paid - charged).feeOnNet(rate), "grossed-up input charge off");
         }
+
+        assertEq(charged, _chargeFor(_grossOf(delta, charged), platformCarry, projectCarry), "charge off");
     }
 
     function _donated(Vm.Log[] memory logs) internal view returns (uint256 total) {

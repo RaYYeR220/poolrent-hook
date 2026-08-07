@@ -27,8 +27,8 @@ lifecycle proof, routing review and product availability — none of which exist
 | Compiler | solc `0.8.26+commit.8a97fa7a`, EVM Cancun, optimizer on at 1000 runs, `viaIR` off, `bytecode_hash` none, `cbor_metadata` off, `ffi` off — recorded in `evidence/dependency-lock.json`. `evidence/build-info.json` was produced by running the official compiler binary over the exact standard-JSON input Foundry emits, because Foundry 1.7.1 records the release as `0.8.26` with no commit suffix of its own |
 | Dependency closure | The `programmable-tested` baseline set unchanged, plus the one solmate revision Uniswap v4 Core's own `ProtocolFees` imports transitively — recorded as `model-specific-pinned` because the platform set is frozen and cannot carry that entry. Every library is checked into the tree at its exact pinned revision and retains its own pinned Git checkout so the lock verifies against it; no npm dependency, and no file under `src/` imports solmate |
 | Baseline cost | `model-specific-pinned` adds two candidate gates, `model-specific-dependency-review` and `model-specific-architecture-review`. Both are recorded in `gate-status.json` as maintainer-owned and not started. Stated here so a reviewer does not have to discover them |
-| Test runs | `evidence/test-evidence.json` — exact commands, counts, fuzz runs, invariant runs/depth/calls/reverts. 181 tests across nine suites at the declared commit, zero failed, zero skipped |
-| Static analysis | `evidence/slither-report.txt` — zero high-severity findings; seven medium, three low and one informational, each with a written disposition in `TEST_PLAN.md` |
+| Test runs | `evidence/test-evidence.json` — exact commands, counts, fuzz runs, invariant runs/depth/calls/reverts. 208 tests across nine suites at the declared commit, zero failed, zero skipped |
+| Static analysis | `evidence/slither-report.txt` — zero high-severity findings; ten medium, three low and two informational, each with a written disposition in `TEST_PLAN.md` |
 | Fork | One suite pinned to Ethereum block `25,700,000` and one against the current head, both against the real PoolManager `0x000000000004444c5dc75cB358380D2e3dE08A90` and the real WETH9 |
 | Gas and size | `forge build --sizes` and the gas figures in `evidence/test-evidence.json`; the hook's runtime is well inside EIP-170 |
 | Permission mask | `0x30CC`, asserted on the hook address produced by running the launcher inside the test suite, and validated by the hook's own constructor |
@@ -71,6 +71,27 @@ makes direct PoolManager calls. This hook makes exactly four — `donate`, `take
 all inside `afterSwap` — and never `swap` or `modifyLiquidity`, so there is no hook-initiated
 same-pool swap for v4's self-call callback suppression to skip a charge on. A test proves no path
 from the hook reaches `PoolManager.swap`.
+
+## Fee-conformance correction, revision 2
+
+The first revision floored the combined 20 bps charge independently on every swap and carried no
+cumulative remainder, so an entitlement worth less than a wei was destroyed rather than deferred: a
+thousand 499-wei swaps paid the immutable owner nothing, while the identical 499,000 wei of aggregate
+volume owes it 499 wei. Splitting the already-floored total could not recover it.
+
+This revision accrues each entitlement directly from the executed gross against its own persisted
+numerator remainder — `platformFeeCarry` and `projectFeeCarry`, both public — at independent rates of
+1000 and 1000 hundredths of a basis point. Claiming moves `feeOwed` and never touches a remainder.
+The project remainder is conserved across handovers, evictions and the vacant-seat path. The
+exact-output legs now solve for the gross that leaves the trader their exact net, bounded and failing
+closed. A unit withheld by the "a charge may never consume the whole executed amount" bound is
+returned to the remainder, project side first, rather than dropped.
+
+The maintainer's scenario is pinned verbatim as a regression: 1,000 swaps of 499 wei gross now pay
+the platform exactly 499 wei, with `feeFromGross(499, PLATFORM_RATE) == 0` asserted first so the test
+fails loudly if per-swap flooring ever returns. Conservation is asserted as an equality — not a dust
+band — at three levels: the library over random sequences, the hook over random swap runs, and the
+stateful invariant suite over 16,384 generated calls per invariant.
 
 ## Reproducing the deployed PoolManager
 
