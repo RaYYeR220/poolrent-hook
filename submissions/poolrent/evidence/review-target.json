@@ -527,8 +527,8 @@
     {
       "path": "src/PoolRentHook.sol",
       "kind": "source-entry",
-      "bytes": 27915,
-      "sha256": "17529c518bf5e78bb675ceda4978fef73686de55537d49d11fc7a92817140f3e"
+      "bytes": 28187,
+      "sha256": "f8d8ec7170b28dfcc37df92efb2ef9d51e543a4b9d7ef942f627bbe91de292b4"
     },
     {
       "path": "src/PoolRentLauncher.sol",
@@ -617,8 +617,8 @@
     {
       "path": "test/Adversarial.t.sol",
       "kind": "test-entry",
-      "bytes": 62785,
-      "sha256": "2056b100228d19b580be463bc227d6b1559dc0b73f44b65cf2e7ae5ebc1541bd"
+      "bytes": 63064,
+      "sha256": "b5c8eb3b65a29021ed54614c8c9104ba9ffaf5fb8dc6f30f941c4bdf50299dd0"
     },
     {
       "path": "test/Auction.t.sol",
@@ -3347,5 +3347,5 @@
     }
   ],
   "javascriptImportResolutions": [],
-  "reviewTargetHash": "sha256:091a655a6ba847a36ff22bf4a40962b4491f20a70572dc4eba4caafa671a8c14"
+  "reviewTargetHash": "sha256:d793e75ce7076ad39df0187686bc8190bd340a9c7df1c62ee7fe8cfe63c50305"
 }
