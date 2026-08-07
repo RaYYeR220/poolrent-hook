@@ -7,7 +7,7 @@ blockers, not footnotes.
 
 Toolchain: `forge` 1.7.1, `solc` 0.8.26 (EVM Cancun, optimizer on at 1000 runs, `viaIR` off,
 `bytecode_hash` none, `cbor_metadata` off, `ffi` off), `slither` 0.11.6, Node.js 24.13.0.
-Fuzz profile: 1000 runs. Invariant profile: 256 runs, depth 64.
+Fuzz profile is 1000 runs. the invariant profile is 256 runs, depth 64.
 
 ## Universal prototype evidence
 
