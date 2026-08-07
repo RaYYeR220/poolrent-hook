@@ -45,7 +45,7 @@
     "network": "ethereum",
     "solidityVersion": "0.8.26",
     "evmVersion": "cancun",
-    "dependencyBaseline": "programmable-tested",
+    "dependencyBaseline": "model-specific-pinned",
     "officialLaunchProfileId": null
   },
   "assets": [
@@ -903,34 +903,17 @@
         "name": "Uniswap v4 PoolManager",
         "kind": "core singleton",
         "repository": "https://github.com/Uniswap/v4-core.git",
-        "revision": null,
-        "packageVersion": "1.0.0",
+        "revision": "59d3ecf53afa9264a16bba0e38f4c5d2231f80bc",
+        "packageVersion": null,
         "license": "MIT or BUSL-1.1 per file",
         "sourceProvenance": "pinned-source",
         "deploymentRecordId": "v4-poolmanager-ethereum",
         "chainAddress": "0x000000000004444c5dc75cB358380D2e3dE08A90",
         "runtimeHash": "0x785f1014552b7ce7d5fb7d0c970ca60edee94fd00425d7ca21609acac7ce1293",
         "deploymentEvidencePath": "submissions/poolrent/evidence/deployment-v4-poolmanager-ethereum.json",
-        "trust": "Address, chain and record id come from the committed deployment snapshot; packageVersion repeats that feed's declared source ref. The authoritative binding is the deployed runtime: the recorded hash is keccak256 of the runtime code observed at mainnet blocks 25700000 and 25701767.",
+        "trust": "Address, chain and record id come from the committed deployment snapshot. The revision is proven, not cited: compiling this repository pinned v4-core checkout under Uniswap own build settings reproduces the deployed runtime exactly, and its keccak256 equals the hash observed at mainnet blocks 25700000 and 25701767.",
         "failure": "The address is immutable in the hook and authenticated on every callback. If it did not carry the expected runtime, every launch and every callback would revert rather than execute against foreign code.",
         "fallback": "None, and none is wanted. There is no second PoolManager and no path that silently substitutes one."
-      },
-      {
-        "id": "weth9-ethereum",
-        "name": "Wrapped Ether WETH9",
-        "kind": "quote-asset ERC-20",
-        "repository": "https://etherscan.io/address/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2#code",
-        "revision": null,
-        "packageVersion": "bzzr0:deb4c2ccab3c2fdca32ab3f46728389c2fe2c165d5fafa07661e4e004f6c344a",
-        "license": "GPL-3.0",
-        "sourceProvenance": "verified-explorer-source",
-        "deploymentRecordId": null,
-        "chainAddress": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-        "runtimeHash": "0xd0a06b12ac47863b5c7be4185c2deaad1c61557033f56c7d4ea74429cbb25e23",
-        "deploymentEvidencePath": "submissions/poolrent/evidence/deployment-weth9-ethereum.json",
-        "trust": "This contract predates compiler-version metadata, so packageVersion records the exact solc source-metadata identifier read out of the deployed runtime and repository records the explorer-verified source page. No git revision is claimed because none is reproducible from this repository. The recorded runtime hash is keccak256 of the runtime code observed at mainnet blocks 25700000 and 25701767.",
-        "failure": "Every movement uses SafeERC20, so a false or malformed return reverts the individual call. It is a standard token with no transfer fee, no rebase and no callback, and the hook depends on nothing else about it.",
-        "fallback": "None. The quote asset is an immutable constructor argument of the hook and cannot be swapped for another token after deployment."
       }
     ],
     "offchain": [
@@ -1018,6 +1001,23 @@
         "trust": "Pinned to the exact commit of the Programmable-tested baseline. It is a test-only dependency and none of its code enters the deployed contracts.",
         "failure": "A drifted commit can only change the test harness, which is caught by rerunning the recorded commands against the pinned commit.",
         "fallback": "None. The baseline commit is part of the dependency lock."
+      },
+      {
+        "id": "solmate-source",
+        "name": "solmate",
+        "kind": "solidity source library vendored inside Uniswap v4 Core",
+        "repository": "https://github.com/transmissions11/solmate",
+        "revision": "4b47a19038b798b4a33d9749d25e570443520647",
+        "packageVersion": null,
+        "license": "AGPL-3.0-only",
+        "sourceProvenance": "pinned-source",
+        "deploymentRecordId": null,
+        "chainAddress": null,
+        "runtimeHash": null,
+        "deploymentEvidencePath": null,
+        "trust": "Pinned by Uniswap v4 Core's own submodule at lib/v4-core/lib/solmate and reached only because v4 Core's ProtocolFees imports Owned. No file under src/ imports it. The checkout is clean at the revision and tree recorded in the dependency lock.",
+        "failure": "Build-time only. A drifted pin changes the compiled v4 Core bytecode, which the pinned-fork suite and the PoolManager source reproduction would both detect.",
+        "fallback": "None. The revision is fixed by the v4 Core commit this project pins."
       }
     ]
   },
@@ -1206,7 +1206,9 @@
         "test/Adversarial.t.sol"
       ],
       "schemaPaths": [],
-      "evidencePaths": [],
+      "evidencePaths": [
+        "submissions/poolrent/evidence/deployment-weth9-ethereum.json"
+      ],
       "exposure": {
         "movesValue": true,
         "usesSignatures": false,
@@ -1254,13 +1256,15 @@
         },
         "externalCalls": {
           "status": "applicable",
-          "summary": "The hook calls exactly two external contracts: the immutable PoolManager for take, donate, sync, settle and updateDynamicLPFee, and the immutable WETH9 quote asset through SafeERC20 for deposits, claims and donation settlement.",
+          "summary": "The hook calls exactly two external contracts: the immutable PoolManager for take, donate, sync, settle and updateDynamicLPFee, and the immutable WETH9 quote asset through SafeERC20 for deposits, claims and donation settlement. The runtime observed at the WETH9 address on the pinned mainnet block is recorded in the bound evidence file.",
           "controls": [
             "Use SafeERC20 for every quote-asset movement and revert on a false or malformed return.",
             "Follow checks, effects and interactions on every claim and withdrawal so a reentrant recipient sees no stale balance.",
             "Keep both external targets immutable so no role can point them at another contract."
           ],
-          "evidenceRefs": []
+          "evidenceRefs": [
+            "submissions/poolrent/evidence/deployment-weth9-ethereum.json"
+          ]
         },
         "custody": {
           "status": "applicable",
@@ -1881,7 +1885,9 @@
     "Routing, quoting, indexing, scanning, aggregation and listing support is not claimed. A hook that returns deltas and a dynamic fee is not automatically supported by every provider; local compatibility is not provider approval and no fallback is asserted for a provider that does not support this runtime.",
     "The canonical pool pairs the launched token against WETH, so a published Uniswap hook-routing review trigger applies even though no routing target is planned for this submission.",
     "Taking the auction seat costs one block of rent immediately and the manager share of the volume charge is carried to the pool's positions for the whole entry block, so a searcher cannot take a vacant seat, collect the manager share of a swap it front-ran and withdraw its deposit in one block.",
-    "One block of entry rent is a blunt instrument. It makes taking the seat cost something, but the sharper guard is that a manager accrues no share of the charge in its entry block. A maintainer may prefer a longer prepaid period instead; both are constants, not structure."
+    "One block of entry rent is a blunt instrument. It makes taking the seat cost something, but the sharper guard is that a manager accrues no share of the charge in its entry block. A maintainer may prefer a longer prepaid period instead; both are constants, not structure.",
+    "WETH9 is declared as the pool's quote asset in assets[] and as an external-call target, not as an onchain protocol dependency record. It is absent from every deployment reference the standard ships, so no deploymentRecordId can be cited for it. Its address and the runtime hash observed at the pinned mainnet block are recorded in evidence/deployment-weth9-ethereum.json.",
+    "The dependency baseline is model-specific-pinned rather than programmable-tested. The pins are the programmable-tested set unchanged, plus the solmate revision that Uniswap v4 Core's own ProtocolFees requires transitively. That choice adds the model-specific-dependency-review and model-specific-architecture-review candidate gates."
   ],
   "unresolved": []
 }

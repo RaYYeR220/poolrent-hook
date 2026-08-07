@@ -93,10 +93,13 @@ same call if the withdrawal drops it below its floor.
 ## Running it
 
 ```bash
-git clone --recurse-submodules https://github.com/RaYYeR220/poolrent-hook
+git clone https://github.com/RaYYeR220/poolrent-hook
 cd poolrent-hook
 forge test
 ```
+
+The pinned dependencies are checked in, so there is nothing to install and nothing to resolve — the
+tree you clone is byte-for-byte the tree the tests and the evidence were produced from.
 
 The mainnet-fork suites need an archive RPC and default to a public one, so they run with no key:
 
@@ -119,7 +122,13 @@ the two fork suites. Boundaries are asserted on both sides — the block a tenur
 the wei at which a deposit is too small, the percentage at which an outbid is accepted.
 
 Build lock: solc `0.8.26`, EVM Cancun, optimizer on at 1000 runs, no viaIR, no bytecode metadata.
-Dependencies are pinned by commit as git submodules.
+Dependencies are checked in at exact pinned revisions.
+
+The deployed mainnet `PoolManager` this hook binds to was not taken on trust: it was recompiled from
+the pinned `lib/v4-core` revision with the official `solc 0.8.26+commit.8a97fa7a` binary under
+Uniswap's own build settings, and the runtime matches byte for byte once the single
+`NoDelegateCall.original` immutable is substituted — 24,009 bytes, zero differences, identical
+`keccak256`.
 
 ## Honest limits
 

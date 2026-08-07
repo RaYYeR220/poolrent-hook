@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baseline": "programmable-tested",
+  "baseline": "model-specific-pinned",
   "compiler": {
     "solidity": "0.8.26",
     "sourceRepository": "https://github.com/argotorg/solidity.git",
@@ -112,14 +112,27 @@
       "importPrefixes": [
         "forge-std/"
       ]
+    },
+    {
+      "name": "solmate",
+      "repository": "https://github.com/transmissions11/solmate",
+      "revision": "4b47a19038b798b4a33d9749d25e570443520647",
+      "packageVersion": null,
+      "integrity": null,
+      "sourceTree": "c39bcd962c6ae0395369f8fae1e37a6f15e1067c",
+      "license": "AGPL-3.0-only",
+      "importPrefixes": [
+        "solmate/"
+      ]
     }
   ],
   "notes": [
-    "The full programmable-tested baseline is recorded here, exactly as the builder skill defines it. Uniswap Liquidity Launcher, Uniswap UERC20 Factory and Permit2 are part of that baseline but are not imported by any contract under src/; they are listed for baseline identity, not because this project builds against them.",
-    "The four baseline components this project actually compiles against are vendored as git submodules pinned to the exact revisions above.",
-    "solmate is reached transitively through Uniswap v4 Core's own submodule at lib/v4-core/lib/solmate and is not an independent project dependency; no contract under src/ imports it.",
-    "The compiler source revision identifies the source, not the executable. The resolved solc binary and its full standard-JSON input/output are recorded separately in the build-info artifacts.",
+    "This lock is the programmable-tested baseline set, byte for byte, plus one entry: the solmate revision that Uniswap v4 Core's own ProtocolFees imports transitively. Every other pin is identical to the platform definition. The baseline is recorded as model-specific-pinned only because the platform set is frozen and cannot carry that transitive entry, not because this project selected a different dependency graph.",
+    "Choosing model-specific-pinned adds the model-specific-dependency-review and model-specific-architecture-review candidate gates. Both are recorded in gate-status.json as maintainer-owned and not started.",
+    "Uniswap Liquidity Launcher, Uniswap UERC20 Factory and Permit2 are part of the baseline definition but are not imported by any contract under src/; they are listed for baseline identity, not because this project builds against them.",
+    "solmate is reached only through Uniswap v4 Core's own vendored checkout at lib/v4-core/lib/solmate, because v4 Core's ProtocolFees imports Owned and the suite deploys a real PoolManager. No contract under src/ imports solmate. Its checkout is clean at the revision and tree recorded above.",
+    "The compiler source revision identifies the source, not the executable. The resolved solc binary and its full standard-JSON input and output are recorded separately in evidence/build-info.json.",
     "evidence/build-info.json was produced by the official solc 0.8.26+commit.8a97fa7a binary run over the exact standard-JSON input Foundry emitted, because Foundry 1.7.1 records the release as `0.8.26` with no commit suffix of its own.",
-    "The `solmate/` remapping resolves inside Uniswap v4 Core's own vendored submodule at lib/v4-core/lib/solmate, pinned by the v4 Core revision above. It is reached only because v4 Core's ProtocolFees imports solmate's Owned and the suite deploys a real PoolManager; no contract under src/ imports solmate. It is deliberately not added to the programmable-tested baseline, whose dependency set and import prefixes are fixed by the platform."
+    "The same official compiler binary, run over the pinned lib/v4-core checkout under Uniswap's own build settings, reproduces the deployed mainnet PoolManager runtime exactly; see evidence/deployment-v4-poolmanager-ethereum.json."
   ]
 }

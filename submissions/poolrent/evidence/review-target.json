@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "standardVersion": "1.3.0",
-  "submissionHash": "sha256:554cebd3ceac0069fc3e2841abb86c601141beb7660c47ad4dae3689e90c2bc0",
+  "submissionHash": "sha256:96105d02891d96c278a16d2a8d4af28b0fd83a997d3e6c0b8b1d8005c3d2a450",
   "closureMethod": "declared-bytes-and-resolved-solidity-and-javascript-imports-v10",
   "closure": {
     "status": "complete",
@@ -551,8 +551,8 @@
     {
       "path": "submissions/poolrent/EVIDENCE.md",
       "kind": "package:EVIDENCE.md",
-      "bytes": 10688,
-      "sha256": "47dc88a6a1bc762ede10e6d663feb649e87feaae3b6bbcb27e92418309b92da7"
+      "bytes": 15636,
+      "sha256": "ff1ccfeffffaa578c4de0e6f4e596077b6483f49614b84892a2ee7453f2b3ba7"
     },
     {
       "path": "submissions/poolrent/PROPOSAL.md",
@@ -575,24 +575,24 @@
     {
       "path": "submissions/poolrent/compatibility-report.json",
       "kind": "package:compatibility-report.json",
-      "bytes": 9570,
-      "sha256": "2fc03b7c00ce704edd2d412f222fdc13a098661b653cdb26732d1d979f9fbeec"
+      "bytes": 10036,
+      "sha256": "db142cc2e84f81ba0eac59865bb73dafa9dae34f39af7647cb64d2ff2c504069"
     },
     {
       "path": "submissions/poolrent/evidence/dependency-lock.json",
       "kind": "dependency-lock",
-      "bytes": 5276,
-      "sha256": "c2f5901275c1d60527283616b0d7552542ddbb0641aa4560fb76d5dcf17f5a9d"
+      "bytes": 5957,
+      "sha256": "c66dff4d04b02e52ed1d652e4a420cd07ae44e87beec5131d03ca6ea02fd6497"
     },
     {
       "path": "submissions/poolrent/evidence/deployment-v4-poolmanager-ethereum.json",
       "kind": "deployment-evidence:Uniswap v4 PoolManager",
-      "bytes": 2629,
-      "sha256": "1ac773f2e9d57c8c32106abe455b809bad9dc5ed4204e83089d2519bef0d70cf"
+      "bytes": 5357,
+      "sha256": "196c34b8d49353de2218322a9bab7bf33725ff68dc0abf379e461eed4cdba626"
     },
     {
       "path": "submissions/poolrent/evidence/deployment-weth9-ethereum.json",
-      "kind": "deployment-evidence:Wrapped Ether WETH9",
+      "kind": "project-surface-evidence:poolrent-hook",
       "bytes": 2293,
       "sha256": "487d75a770828e925f0d16421729a4109a5e27055f782c10c0136e3f9d5b0613"
     },
@@ -611,8 +611,8 @@
     {
       "path": "submissions/poolrent/submission.json",
       "kind": "package:submission.json",
-      "bytes": 115338,
-      "sha256": "8e55b0ce8556aae8076a0fe9a41e7ed78316db24215f49da2a096b60df0f77a3"
+      "bytes": 115931,
+      "sha256": "84f9115c4a58b6edf226a7c6386f9c9f0bba252da41cd863d7e89bc93e294343"
     },
     {
       "path": "test/Adversarial.t.sol",
@@ -3347,5 +3347,5 @@
     }
   ],
   "javascriptImportResolutions": [],
-  "reviewTargetHash": "sha256:d84dfa475deaf83894115a1bae0ceaf7a5189ab5aca9c8d1d46ae887ed69c8de"
+  "reviewTargetHash": "sha256:939b38f236b96f8a14cd36ddf91e897ed817a1a2e161e89fc7bfc6eb5a5d8c0a"
 }

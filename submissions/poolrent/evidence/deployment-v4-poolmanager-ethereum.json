@@ -17,10 +17,51 @@
   "observedBlock": 25700000,
   "rpcClass": "public archive JSON-RPC over HTTPS (eth.drpc.org by default, overridable with MAINNET_RPC_URL)",
   "sourceRepository": "https://github.com/Uniswap/v4-core.git",
-  "sourceRevision": null,
-  "sourceStatus": "runtime-observed-source-not-reproduced",
-  "verificationProvider": "none: the runtime hash below was computed locally as keccak256 of the account code returned by the archive RPC during the pinned-block fork run; no explorer or third-party verification service was consulted",
-  "compiler": "solc 0.8.26, read from the CBOR metadata trailer of the deployed runtime code (a1 64 736f6c63 43 00 08 1a)",
+  "sourceRevision": "59d3ecf53afa9264a16bba0e38f4c5d2231f80bc",
+  "sourceStatus": "matched",
+  "verificationProvider": "builder-local source-to-runtime reproduction: the official solc 0.8.26+commit.8a97fa7a binary was run over the pinned v4-core checkout in this repository under Uniswap own build settings, and the result was compared byte for byte with the account code returned by the archive RPC. No explorer or third-party verification service was consulted.",
+  "compiler": "solc 0.8.26+commit.8a97fa7a, viaIR true, optimizer enabled at 44444444 runs, evmVersion cancun, bytecodeHash none, CBOR metadata appended. These are Uniswap own settings from lib/v4-core/foundry.toml at the pinned revision, and solc 0.8.26 is independently confirmed by the CBOR metadata trailer of the deployed runtime (a1 64 736f6c63 43 00 08 1a).",
+  "sourceReproduction": {
+    "method": "standard-json compile of src/PoolManager.sol from the pinned checkout, then substitution of the single Solidity immutable the deployment fills in",
+    "sourceRoot": "lib/v4-core",
+    "sourceRevision": "59d3ecf53afa9264a16bba0e38f4c5d2231f80bc",
+    "sourceTree": "eb2b71f69fae17a743bcdddd54b5fe941236d949",
+    "compilerInputSources": 45,
+    "settings": {
+      "solcLongVersion": "0.8.26+commit.8a97fa7a",
+      "viaIR": true,
+      "optimizer": true,
+      "optimizerRuns": 44444444,
+      "evmVersion": "cancun",
+      "bytecodeHash": "none",
+      "remappings": [
+        "@ensdomains/=node_modules/@ensdomains/",
+        "@openzeppelin/=lib/openzeppelin-contracts/",
+        "ds-test/=lib/forge-std/lib/ds-test/src/",
+        "forge-std/=lib/forge-std/src/",
+        "hardhat/=node_modules/hardhat/",
+        "solmate/=lib/solmate/"
+      ]
+    },
+    "compiledRuntimeBytes": 24009,
+    "observedRuntimeBytes": 24009,
+    "compiledRuntimeKeccak256": "0xa1d857ebc4a1ec6c1d33662732f3a056378b71c5a82a84cb42c692323bbebb48",
+    "immutableSubstitutions": [
+      {
+        "name": "NoDelegateCall.original",
+        "byteOffset": 13618,
+        "length": 20,
+        "compiledPlaceholder": "0x0000000000000000000000000000000000000000",
+        "deployedValue": "0x000000000004444c5dc75cB358380D2e3dE08A90",
+        "reason": "Solidity writes an immutable as a zero placeholder in the compile-time runtime object and the deployment substitutes the value; this immutable is the contract own address, used by NoDelegateCall to reject delegatecall."
+      }
+    ],
+    "differingBytesBeforeSubstitution": 15,
+    "differingBytesAfterSubstitution": 0,
+    "substitutedRuntimeKeccak256": "0x785f1014552b7ce7d5fb7d0c970ca60edee94fd00425d7ca21609acac7ce1293",
+    "observedRuntimeKeccak256": "0x785f1014552b7ce7d5fb7d0c970ca60edee94fd00425d7ca21609acac7ce1293",
+    "result": "exact match"
+  },
   "observations": [
     {
       "block": 25700000,
@@ -44,8 +85,8 @@
     }
   ],
   "notes": [
-    "The pinned deployment snapshot marks this record's sourceRef as unresolved, so no exact source commit is claimed and sourceRevision stays null.",
-    "sourceStatus is not matched: nobody has reproduced this runtime from source in this repository. Only the deployed runtime identity is recorded.",
-    "A fork run proves compatibility with the deployed code. It is not a deployment receipt and it is not source verification."
+    "sourceStatus is matched because the deployed runtime was reproduced from the pinned source in this repository, not because an explorer says so. The only difference before substitution was the single immutable slot the deployment fills with the contract own address; after substituting it, zero bytes differ and the keccak256 is identical.",
+    "The pinned deployment snapshot marks this record sourceRef as unresolved, so the feed itself does not name the source commit. The revision recorded here is the one this reproduction proves, and git describe calls it v4.0.0-12-g59d3ecf5, so it is not the v4-core@1.0.0 tag the feed cites.",
+    "A source-to-runtime reproduction is not a deployment receipt and not an audit. It proves that the bytes running at this address are the bytes this repository compiles from the pinned revision."
   ]
 }
