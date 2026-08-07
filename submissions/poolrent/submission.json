@@ -1,0 +1,1882 @@
+{
+  "$schema": "urn:programmable:v4-hook-submission:1.3.0",
+  "schemaVersion": 1,
+  "standardVersion": "1.3.0",
+  "stage": "prototype",
+  "model": {
+    "id": "poolrent",
+    "name": "PoolRent",
+    "summary": "Sell the right to set one canonical launch pool's LP fee on a continuous permissionless rent auction and pay that rent back to the same pool's providers every swap.",
+    "userOutcome": "A creator launches one fixed-supply token against WETH; traders pay a fee chosen by whoever pays the most per block for the right to choose it, and the providers behind that pool receive the rent.",
+    "category": "market-structure",
+    "whyV4": "Only a v4 hook can return a per-swap LP-fee override, carve a charge out of the amount the pool actually executed in all four direction and exactness modes, and pay the rent to in-range positions through PoolManager.donate inside the same swap. A router surcharge is bypassable and a static PoolKey fee cannot change hands."
+  },
+  "builder": {
+    "github": "RaYYeR220",
+    "contact": "egorivaschenko77@gmail.com",
+    "beneficiary": "0xF3B025ed707A50704f93658CA10797230AaFbC37",
+    "licenseDeclaration": "MIT. Every file declared in this submission carries SPDX-License-Identifier: MIT and the repository ships the matching LICENSE file."
+  },
+  "publicMetadata": {
+    "project": {
+      "name": "PoolRent",
+      "description": "PoolRent auctions the right to set one canonical Uniswap v4 launch pool's LP fee and donates the winner's per-block rent to that pool's in-range positions.",
+      "projectUri": null,
+      "logoUri": "https://raw.githubusercontent.com/RaYYeR220/poolrent-hook/main/assets/logo.svg",
+      "logoContentHash": "sha256:0a6e2651538972471745405a5be46e2b00e63d5b26887346e9c6c15454c171ba",
+      "metadataMutable": false,
+      "metadataOwner": null
+    },
+    "token": {
+      "name": "PoolRent Demo",
+      "symbol": "PRD",
+      "metadataUri": null,
+      "metadataContentHash": null,
+      "logoUri": "https://raw.githubusercontent.com/RaYYeR220/poolrent-hook/main/assets/logo.svg",
+      "logoContentHash": "sha256:0a6e2651538972471745405a5be46e2b00e63d5b26887346e9c6c15454c171ba",
+      "metadataMutable": false,
+      "metadataOwner": null
+    },
+    "claimedAffiliations": [],
+    "providerPresentations": []
+  },
+  "target": {
+    "chainId": 1,
+    "network": "ethereum",
+    "solidityVersion": "0.8.26",
+    "evmVersion": "cancun",
+    "dependencyBaseline": "programmable-tested",
+    "officialLaunchProfileId": null
+  },
+  "assets": [
+    {
+      "id": "launched-token",
+      "role": "launched",
+      "origin": "new-fixed-supply",
+      "address": null,
+      "decimals": 18,
+      "decimalsSource": "implementation-constant",
+      "supplyPolicy": "fixed-at-creation",
+      "initialSupply": "1000000000000000000000000000",
+      "behaviors": [
+        "standard"
+      ],
+      "controls": []
+    },
+    {
+      "id": "weth9",
+      "role": "quote",
+      "origin": "existing-erc20",
+      "address": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "decimals": 18,
+      "decimalsSource": "token-contract-observation",
+      "supplyPolicy": "externally-managed",
+      "initialSupply": null,
+      "behaviors": [
+        "standard"
+      ],
+      "controls": []
+    }
+  ],
+  "launchLifecycle": {
+    "tokenCreation": {
+      "applicable": true,
+      "actor": "The launch wallet fixed in the PoolRentLauncher constructor calls deployAndLaunch once; the launcher deploys PoolRentToken with CREATE2 and reverts on any second call.",
+      "valueFlow": "The complete fixed supply is created once inside the token constructor and credited to the launcher, which forwards every unspent unit back to the launch wallet before the launch transaction returns.",
+      "custody": "The launcher briefly carries the whole supply inside the launch transaction and keeps only what the seeded position consumes; the token contract itself never carries a balance.",
+      "failure": "A zero supply or zero recipient reverts in the token constructor, a repeated launch reverts with AlreadyLaunched, and any revert rolls back the whole launch atomically.",
+      "event": "Launched(address indexed token,address indexed hook,bytes32 poolId,uint128 liquidity)",
+      "notApplicableReason": null
+    },
+    "poolInitialization": {
+      "applicable": true,
+      "actor": "The same launch transaction calls PoolManager.initialize on the canonical PoolKey; beforeInitialize re-derives the expected PoolId inside the hook and afterInitialize writes the starting dynamic fee.",
+      "valueFlow": "No value moves during initialization. afterInitialize calls PoolManager.updateDynamicLPFee with 3000 hundredths of a bip so the pool has a usable fee before the first swap.",
+      "custody": "Nothing is retained. The hook records only that it has been initialized and stores the block number it will accrue rent from.",
+      "failure": "A foreign PoolKey member, a second initialization or a start price other than the constructor value reverts with UnexpectedPool or AlreadyInitialized.",
+      "event": "Initialize is emitted by PoolManager for the canonical PoolId; the hook adds no separate initialization event.",
+      "notApplicableReason": null
+    },
+    "liquidityFormation": {
+      "applicable": true,
+      "actor": "The same launch transaction unlocks PoolManager and adds one full-range position through modifyLiquidity; afterwards any account may add or remove its own positions without the hook mediating.",
+      "valueFlow": "The launcher settles both owed currencies with sync, transfer and settle, bounded by the declared maxToken and maxQuote caps, then returns every unspent unit to the launch wallet.",
+      "custody": "The launcher permanently owns the initial full-range position and exposes no decrease, collect, sweep, arbitrary-call or recovery path, so the seeded position cannot be pulled by project code. Later positions belong to their own providers.",
+      "failure": "A positive delta reverts with UnexpectedDelta and an over-budget settlement reverts with QuoteExceeded or TokenExceeded; the whole launch rolls back.",
+      "event": "ModifyLiquidity is emitted by PoolManager, and Launched records the token, hook, PoolId and seeded position size.",
+      "notApplicableReason": null
+    },
+    "initialTransaction": {
+      "applicable": true,
+      "actor": "Any trader through any router. No allowlist, presale, cooldown or first-buyer privilege exists, and the auction may still be vacant at that point.",
+      "valueFlow": "An ordinary v4 swap on the canonical PoolKey: the stored 3000 default LP fee applies while the auction is vacant, and the 2000 hundredths-of-a-bip hook charge is taken on the executed gross WETH amount.",
+      "custody": "Only the hook charge stays behind, as a claimable liability inside the hook; the trader keeps everything else.",
+      "failure": "Ordinary Uniswap v4 revert paths apply. On the two quadrants charged in beforeSwap a partial fill reverts with PartialFillRejected instead of charging volume the pool never executed.",
+      "event": "Swap is emitted by PoolManager and FeeAccrued records each accrued liability.",
+      "notApplicableReason": null
+    },
+    "trading": {
+      "applicable": true,
+      "actor": "Any trader through any router, in all four direction and exactness modes, for the life of the pool.",
+      "valueFlow": "beforeSwap returns the current manager fee with the override flag, or zero when the seat is vacant. The hook charge is taken in beforeSwap on the two quadrants where WETH is the specified currency and in afterSwap on the two where it is unspecified, always on the executed gross WETH amount, booked to the two balances and taken from PoolManager in the same afterSwap. Rent owed by the manager is donated to in-range positions in the same callback.",
+      "custody": "The hook retains only the accrued charge and any rent not yet donated; the pool's own reserves stay inside PoolManager and are never treated as backing for a hook liability.",
+      "failure": "A wrong PoolId reverts with UnexpectedPool, a partial fill on a beforeSwap-charged quadrant reverts with PartialFillRejected, and a donation that cannot land is skipped rather than reverting the swap.",
+      "event": "Swap, FeeAccrued, RentAccrued, RentDonated and ManagerChanged together describe every state change a swap can cause.",
+      "notApplicableReason": null
+    },
+    "feesAndClaims": {
+      "applicable": true,
+      "actor": "The immutable Programmable owner constant and the current manager each call claimFee for their own balance; nobody can call it for another account.",
+      "valueFlow": "claimFee decrements the caller's own feeOwed and the shared totalFeeOwed, then transfers exactly that amount of WETH to a destination the caller chooses for that individual claim.",
+      "custody": "Accrued balances stay inside the hook as claimable liabilities until their owner claims them; there is no auto-transfer, expiry, forfeiture or administrative sweep.",
+      "failure": "A zero destination reverts with ZeroAddress and a zero or over-balance amount reverts with NothingOwed; a failing WETH transfer reverts only that claim and leaves every other balance untouched.",
+      "event": "FeeAccrued(bytes32 indexed poolId,address indexed currency,address indexed beneficiary,uint256 amount) and FeeClaimed(bytes32 indexed poolId,address indexed currency,address indexed beneficiary,address to,uint256 amount)",
+      "notApplicableReason": null
+    },
+    "dependencyFailure": {
+      "applicable": true,
+      "actor": "Any trader, provider, bidder or claimant that encounters a WETH9 or PoolManager failure. No operator, keeper or administrator is involved because none exists.",
+      "valueFlow": "Every WETH movement goes through SafeERC20, so a false or malformed return reverts the individual call it belongs to and creates no unfunded liability. No value is moved on a failed path.",
+      "custody": "A failed call leaves the hook's balances and its three liability namespaces exactly as they were; no partial settlement is possible inside one reverted call.",
+      "failure": "Fail closed and isolated. One beneficiary whose WETH transfer reverts blocks only its own claim; every other claim, deposit withdrawal and swap continues to work.",
+      "event": "No dedicated event. A failed dependency call reverts, so the absence of FeeClaimed, DepositWithdrawn or RentDonated is itself the observable signal.",
+      "notApplicableReason": null
+    },
+    "retirement": {
+      "applicable": false,
+      "actor": null,
+      "valueFlow": null,
+      "custody": null,
+      "failure": null,
+      "event": null,
+      "notApplicableReason": "There is nothing to wind down or migrate. The hook, the token and the launcher are immutable, the hook keeps no position, and every unit of WETH it carries is withdrawable or claimable by its own owner at any block, so no retirement, migration or shutdown path is defined or needed."
+    }
+  },
+  "pool": {
+    "currency0": "launched-token",
+    "currency1": "weth9",
+    "orderingRule": "The launched token's CREATE2 salt is mined until its predicted address sorts below the fixed mainnet WETH9 address, so currency0 is the launched token and currency1 is WETH9. The hook derives the ordering in its constructor and reverts if the two are not strictly ordered.",
+    "tickSpacing": 60,
+    "lpFee": {
+      "classification": "lp-fee",
+      "mode": "dynamic",
+      "hundredthsOfBip": null,
+      "initialHundredthsOfBip": 3000,
+      "initializationPath": "afterInitialize-updateDynamicLPFee",
+      "applicationMode": "before-swap-override",
+      "overrideFlagPolicy": "While a manager holds the role, beforeSwap returns a uint24 inside the immutable range 100 to 20000 with LPFeeLibrary.OVERRIDE_FEE_FLAG set. While the auction is vacant it returns 0 with no flag, so core applies the pool's stored dynamic fee of 3000.",
+      "persistentUpdateActor": null,
+      "persistentUpdateCallSites": [],
+      "rateLimit": null,
+      "updatePath": "afterInitialize calls PoolManager.updateDynamicLPFee once with 3000. Per swap, beforeSwap returns managerLpFee combined with LPFeeLibrary.OVERRIDE_FEE_FLAG when a manager holds the seat and returns 0 otherwise, so the stored 3000 applies whenever the seat is vacant. A genuine handover resets the manager value to the documented 3000 default rather than inheriting the outgoing one. No other call site ever writes the stored pool fee.",
+      "minimum": 100,
+      "maximum": 20000,
+      "inputMetric": "The uint24 value the current auction manager last wrote through setLpFee, kept in hook storage and clamped to the immutable range on write and again on read. It is a declared parameter of a role that must be paid for per block, not a measurement of pool state, price or size.",
+      "referenceAsset": "None. The value is a raw uint24 rate and is never derived from a price, an asset amount, a supply, an external feed or any other reference asset.",
+      "measurementUnit": "Hundredths of a basis point, the same uint24 unit Uniswap v4 uses for the pool LP fee.",
+      "observationMode": "instantaneous",
+      "observationWindow": "No window exists because nothing is sampled. The stored value applies from the block the manager writes it until the manager writes another one or the auction is vacated.",
+      "curve": "No transformation is applied. beforeSwap returns exactly the stored uint24 with the override flag set, or zero when the auction is vacant so the pool's stored 3000 applies. There is no interpolation, smoothing or tier table between the input and the applied fee.",
+      "updateCadence": "Whenever the current manager calls setLpFee, with no minimum interval and no rate limit. Every write is bounded by the immutable range and emits LpFeeUpdated.",
+      "liquidityDecreaseBehavior": "Adding or removing positions does not move the fee at all. The value comes only from the manager's declared parameter, so no same-block or multi-block position change can raise or lower it, and the hook enables no add or remove callback.",
+      "manipulationResistance": "A trader cannot move the value inside a swap because it is not derived from any pool observation. The manager can move it only inside the immutable range, only while paying per-block rent out of a posted deposit, and only after winning an auction that requires at least 110 percent of the standing rent. A vacated auction falls back to the stored 3000.",
+      "failureRule": "setLpFee reverts with InvalidLpFee outside the immutable range. A vacant auction makes beforeSwap return zero so the pool's stored 3000 applies, and no swap can fail because of the fee source.",
+      "recipient": "pool-liquidity-providers"
+    },
+    "canonical": true,
+    "alternativePools": "A second pool carrying this hook cannot be initialized at all: beforeInitialize admits exactly one PoolKey, once. Pools built from the same currencies without this hook may exist, do not inherit any of this model's behavior, and are outside the Programmable fee policy."
+  },
+  "programmableFee": {
+    "policyId": "programmable-volume-fee-v1",
+    "policyVersion": "1.0.0",
+    "poolScope": "canonical-launch-pool-key",
+    "rates": {
+      "unit": "hundredths-of-bip",
+      "selectedHundredthsOfBip": 2000,
+      "minimumEffectiveHundredthsOfBip": 1000,
+      "effectiveHundredthsOfBip": 2000,
+      "platformHundredthsOfBip": 1000,
+      "projectHundredthsOfBip": 1000,
+      "formula": "effective=max(selected,1000);platform=1000;project=effective-1000",
+      "lpFeeExcluded": true
+    },
+    "basis": {
+      "volume": "gross-quote-side-swap-volume",
+      "quoteAsset": "canonical-pool-quote-asset"
+    },
+    "ownership": {
+      "owner": "0x4957f49620AFf3Adbbe8195a4f633E49cc93376c",
+      "immutable": true,
+      "claimAuthority": "owner-only",
+      "claimAvailability": "anytime",
+      "claimDestinationPolicy": "owner-or-owner-selected-per-claim",
+      "storedMutableRecipient": false,
+      "builderCanMutate": false,
+      "projectCanMutate": false,
+      "administratorCanMutate": false
+    },
+    "collection": {
+      "status": "implemented",
+      "integration": "canonical-pool-hook",
+      "enforcement": "non-bypassable",
+      "hookFeeMechanismBinding": "hook.feeMechanism",
+      "supportedSwapModes": [
+        "zeroForOne-exactInput",
+        "zeroForOne-exactOutput",
+        "oneForZero-exactInput",
+        "oneForZero-exactOutput"
+      ],
+      "swapModePaths": {
+        "zeroForOneExactInput": "after-swap-return-delta",
+        "zeroForOneExactOutput": "before-swap-return-delta",
+        "oneForZeroExactInput": "before-swap-return-delta",
+        "oneForZeroExactOutput": "after-swap-return-delta"
+      },
+      "selfCallPolicy": "same-pool-swap-fee-enforced-internally"
+    },
+    "accounting": {
+      "accrualMode": "claimable-liability",
+      "liabilityKeyDimensions": [
+        "poolId",
+        "currency",
+        "owner"
+      ],
+      "crossPoolNetting": false,
+      "valueFlowId": "programmable-volume-fee-accrual",
+      "collectionEvent": "FeeAccrued(bytes32 indexed poolId,address indexed currency,address indexed beneficiary,uint256 amount)",
+      "claimEvent": "FeeClaimed(bytes32 indexed poolId,address indexed currency,address indexed beneficiary,address to,uint256 amount)"
+    },
+    "evidence": {
+      "sourcePaths": [
+        "src/PoolRentHook.sol",
+        "src/libraries/PoolRentMath.sol"
+      ],
+      "testPaths": [
+        "test/Fee.t.sol",
+        "test/Invariants.t.sol",
+        "test/Fuzz.t.sol"
+      ]
+    }
+  },
+  "hook": {
+    "used": true,
+    "base": "OpenZeppelin uniswap-hooks BaseHook",
+    "upgradeable": false,
+    "sharedAcrossPools": false,
+    "poolNamespace": "One immutable PoolRentHook instance serves exactly one canonical PoolId, computed in its constructor from both currencies, the dynamic-fee flag, the tick spacing and its own address, and stored as an immutable.",
+    "poolAdmission": {
+      "enforcement": "beforeInitialize compares every PoolKey member against the hook's own constructor immutables, re-derives the PoolId, compares the start price, and reverts unless all of them match. A second initialization reverts with AlreadyInitialized. Every later callback re-derives the PoolId and reverts with UnexpectedPool on any other key.",
+      "factoryOrRegistry": "PoolRentLauncher deploys the token and the hook with CREATE2 in one transaction and immediately initializes the canonical pool. It is single-use and holds no registry of other pools; no external factory or registry can bind this hook to a different key.",
+      "alternativePoolBehavior": "Any other PoolKey that names this hook cannot be initialized, so no alternative pool can inherit the auction, the LP-fee override or the hook charge. Pools built from the same currencies without this hook are ordinary v4 pools and are outside this model and outside the fee policy.",
+      "rejectionRule": "Revert with UnexpectedPool on any currency, fee-flag, tick-spacing, hook-address, start-price or PoolId mismatch, and with AlreadyInitialized on a repeated initialization."
+    },
+    "permissions": {
+      "beforeInitialize": true,
+      "afterInitialize": true,
+      "beforeAddLiquidity": false,
+      "afterAddLiquidity": false,
+      "beforeRemoveLiquidity": false,
+      "afterRemoveLiquidity": false,
+      "beforeSwap": true,
+      "afterSwap": true,
+      "beforeDonate": false,
+      "afterDonate": false,
+      "beforeSwapReturnDelta": true,
+      "afterSwapReturnDelta": true,
+      "afterAddLiquidityReturnDelta": false,
+      "afterRemoveLiquidityReturnDelta": false
+    },
+    "callbackPolicies": [
+      {
+        "callback": "beforeInitialize",
+        "necessity": "The canonical pool binding is only enforceable before the pool exists: this callback re-derives the expected PoolId from the hook's own immutables and admits exactly one PoolKey, once.",
+        "allowedReverts": "Only a PoolKey member mismatch, a start-price mismatch, a PoolId mismatch or a repeated initialization may revert, with UnexpectedPool or AlreadyInitialized.",
+        "userExitImpact": "None. The callback runs once before any position exists and cannot affect a later swap, a position exit or a claim.",
+        "noSelfCallImpact": "The hook initiates no PoolManager action during initialization, so there is no self-call and nothing for v4 callback suppression to skip."
+      },
+      {
+        "callback": "afterInitialize",
+        "necessity": "A dynamic-fee pool starts at zero, so the hook writes the immutable default of 3000 hundredths of a bip once through PoolManager.updateDynamicLPFee before the first swap can happen.",
+        "allowedReverts": "Only a failure of the single updateDynamicLPFee call may revert initialization; no other condition is evaluated here.",
+        "userExitImpact": "None. It runs once, moves no value and cannot govern a later position exit or claim.",
+        "noSelfCallImpact": "updateDynamicLPFee is not a pool action, so v4 initiates no nested callback and suppresses nothing during this call."
+      },
+      {
+        "callback": "beforeSwap",
+        "necessity": "Two things must happen before core executes: the manager's LP fee is returned as an override, and on the two quadrants where WETH is the specified currency the charge is carved out of the specified amount so the pool executes the correct residual.",
+        "allowedReverts": "Only a foreign PoolId, an out-of-bounds arithmetic conversion or a rate above the denominator may revert. Rent accrual and manager eviction inside this callback are constant-time and cannot revert a swap.",
+        "userExitImpact": "The callback affects swaps only. It enables no liquidity callback, so adding or removing a position is never mediated by the hook, and claims and deposit withdrawals are separate external entry points.",
+        "noSelfCallImpact": "The hook never calls PoolManager.swap, so v4's suppression of a hook's own callbacks can never skip this charge; the allowed nested actions are donate, take and settle only."
+      },
+      {
+        "callback": "afterSwap",
+        "necessity": "On the two quadrants where WETH is the unspecified currency the executed gross amount is only known here, the whole charge is taken from PoolManager here, and accrued rent is donated to in-range positions in the same callback.",
+        "allowedReverts": "A foreign PoolId reverts with UnexpectedPool and a partial fill on a beforeSwap-charged quadrant reverts with PartialFillRejected. A donation that cannot land is skipped rather than reverted.",
+        "userExitImpact": "The callback affects swaps only and cannot block a position exit, a fee claim or a deposit withdrawal, each of which is a separate external entry point.",
+        "noSelfCallImpact": "The nested donate, take and settle calls made here are suppressed by v4 for this hook's own callbacks, which is safe because none of them is a swap and none of them can create or skip a charge."
+      }
+    ],
+    "hookData": {
+      "used": false,
+      "schema": null,
+      "identitySource": null,
+      "trustedRouterDeploymentRecordId": null,
+      "callbackSenderRule": null,
+      "validation": null
+    },
+    "feeMechanism": {
+      "used": true,
+      "classification": "hook-owned-fee",
+      "chargedCurrency": "The canonical pool's quote asset WETH9, which is currency1: gross currency1 output on both zeroForOne modes and gross currency1 input on both oneForZero modes.",
+      "swapQuadrants": {
+        "zeroForOneExactInput": {
+          "currency": "currency1",
+          "basis": "gross-output",
+          "formula": "floor(executed gross currency1 output times 2000 divided by 1000000), bounded below the executed amount",
+          "rounding": "down",
+          "maximumHundredthsOfBip": 2000
+        },
+        "zeroForOneExactOutput": {
+          "currency": "currency1",
+          "basis": "gross-output",
+          "formula": "ceil(requested net currency1 output times 2000 divided by (1000000 minus 2000)), added on top so the charge is 2000 hundredths of a bip of the gross currency1 the pool executes",
+          "rounding": "up",
+          "maximumHundredthsOfBip": 2000
+        },
+        "oneForZeroExactInput": {
+          "currency": "currency1",
+          "basis": "gross-input",
+          "formula": "floor(specified gross currency1 input times 2000 divided by 1000000), carved out before the residual is swapped",
+          "rounding": "down",
+          "maximumHundredthsOfBip": 2000
+        },
+        "oneForZeroExactOutput": {
+          "currency": "currency1",
+          "basis": "gross-input",
+          "formula": "ceil(executed net currency1 input times 2000 divided by (1000000 minus 2000)), so the charge is 2000 hundredths of a bip of the gross currency1 the trader pays",
+          "rounding": "up",
+          "maximumHundredthsOfBip": 2000
+        }
+      },
+      "maximumHundredthsOfBip": 2000,
+      "collectionPath": "quadrant-dependent-swap-return-delta",
+      "collectionValueFlowId": "programmable-volume-fee-accrual",
+      "liabilityKeyDimensions": [
+        "poolId",
+        "currency",
+        "beneficiary"
+      ],
+      "collectionEvent": "FeeAccrued(bytes32 indexed poolId,address indexed currency,address indexed beneficiary,uint256 amount)",
+      "recipients": [
+        {
+          "role": "programmable-platform",
+          "sharePpm": 500000,
+          "addressSource": "fixed-address",
+          "address": "0x4957f49620AFf3Adbbe8195a4f633E49cc93376c",
+          "binding": "exact-address",
+          "derivationRule": null,
+          "mutable": false,
+          "mutationController": "none",
+          "newAddressValidation": "none",
+          "mutationEvent": null
+        },
+        {
+          "role": "pool-manager",
+          "sharePpm": 500000,
+          "addressSource": "derived-contract",
+          "address": null,
+          "binding": "immutable-derived-contract",
+          "derivationRule": "The manager share is credited to the address held in the hook public manager slot at the instant of accrual, which is set only by the permissionless bid path and cleared only by deterministic eviction. The derivation is a single storage read inside the same afterSwap callback that books the charge; there is no setter, no administrator and no way to point it at another address. Once credited, a balance belongs to that exact address forever and cannot be moved by a later seat change. While the slot is zero, and also in the very block an address took the seat, the manager share is added to pendingRent and donated to in-range positions instead, so no charge can become unowned and taking the seat is never a free option on the next swap.",
+          "mutable": false,
+          "mutationController": "none",
+          "newAddressValidation": "none",
+          "mutationEvent": null
+        }
+      ],
+      "ownership": "The charge is split by the immutable constant PLATFORM_SHARE_PPM: exactly 1000 hundredths of a bip accrues to the immutable Programmable owner constant and the remaining 1000 to whoever holds the rotating manager role at the instant of accrual. No builder, project, administrator, launcher or manager can redirect, sweep, net or rescue either liability, and the contract exposes no function that could.",
+      "claimPolicy": "claimFee(to, amount) moves only msg.sender's own accrued balance, to a destination the caller chooses for that individual claim, after the balance and the aggregate total have been decremented. The Programmable owner's balance is keyed to its immutable constant address, so only that address can ever move it, at any block and with no expiry."
+    },
+    "customAccounting": {
+      "used": true,
+      "backingSource": "Every unit the hook owes is backed by its own WETH9 balance. The claimable balance is booked and the matching amount is then taken from PoolManager into this contract inside the same callback, and auction deposits are pulled in with SafeERC20 before they can be spent. Canonical pool reserves inside PoolManager are never counted as backing.",
+      "conservationEquation": "WETH9.balanceOf(hook) is greater than or equal to totalDeposits plus pendingRent plus totalFeeOwed, at every block and after every entry point.",
+      "settlement": "Per swap: accrue rent, compute the quadrant charge, return it as a beforeSwap specified delta or an afterSwap unspecified delta, book the platform and manager balances, take the combined amount in WETH from PoolManager into this contract inside afterSwap, then donate pending rent and settle that donation with sync, transfer and settle. The booking and the take happen in one atomic callback, so neither can exist without the other.",
+      "partialFillBehavior": "On the two quadrants charged in afterSwap the basis is the amount PoolManager actually executed, so an unfilled remainder is never charged. On the two charged in beforeSwap the executed amount is compared against the amount the hook priced and any difference reverts with PartialFillRejected rather than charging volume the pool never executed.",
+      "liabilityNamespace": "Three disjoint namespaces inside one contract serving one PoolId: deposits keyed by depositor, pendingRent owed to the pool's in-range positions, and feeOwed keyed by beneficiary. Each has its own aggregate and none is ever netted against another.",
+      "liabilityKeyDimensions": [
+        "poolId",
+        "currency",
+        "beneficiary"
+      ],
+      "crossPoolNetting": false,
+      "duplicateCurrencyPolicy": "The hook serves exactly one PoolId and one quote currency, so a duplicate-currency collision across pools is structurally impossible. The launched token is never taken, credited or owed by the hook; only WETH9 balances exist in the three namespaces.",
+      "failureIsolation": "Any failed take, ledger write or token transfer reverts the whole action it belongs to, and no catch path records an unfunded balance. A claim that fails for one beneficiary changes nothing for another, and a donation that cannot land is skipped so it can never revert a swap or block a withdrawal.",
+      "withdrawalOrdering": "claimFee checks msg.sender's own balance, decrements that balance and the aggregate, then transfers, so a reverted transfer rolls the decrement back. withdrawDeposit accrues rent first, decrements the caller's own deposit and the aggregate, evicts the caller if it is the manager and falls below its floor, and only then transfers."
+    },
+    "returnDeltaAccounting": {
+      "used": true,
+      "quadrants": {
+        "zeroForOneExactInput": {
+          "supported": true,
+          "specifiedCurrency": "currency0",
+          "unspecifiedCurrency": "currency1",
+          "amountSign": "negative-exact-input",
+          "specifiedComponent": {
+            "mode": "zero-only",
+            "formula": null,
+            "minimum": "0",
+            "maximum": "0",
+            "minimumSign": "zero",
+            "maximumSign": "zero",
+            "positiveSettlementActions": [],
+            "negativeSettlementActions": []
+          },
+          "unspecifiedComponent": {
+            "mode": "zero-only",
+            "formula": null,
+            "minimum": "0",
+            "maximum": "0",
+            "minimumSign": "zero",
+            "maximumSign": "zero",
+            "positiveSettlementActions": [],
+            "negativeSettlementActions": []
+          },
+          "residualAmmEquation": "amountSpecified-plus-specifiedDelta",
+          "finalCallerDeltaEquation": "pool-manager-swap-delta-minus-hook-delta",
+          "specifiedDeltaCanConsumeEntireAmount": false,
+          "zeroAmmLeg": "forbidden",
+          "rounding": "beforeSwap returns an exact zero delta on this quadrant, so no rounding happens here. The quote asset is the unspecified currency and its charge is rounded down in afterSwap under the post-action policy.",
+          "partialFillRule": "beforeSwap prices nothing on this quadrant, so a price-limited or partially filled swap simply produces a smaller executed output and the afterSwap charge follows that executed amount exactly.",
+          "slippageInvariant": "The router's minimum output is applied to the final caller delta after the afterSwap charge, never to a pre-charge quote, because the beforeSwap delta is exactly zero here.",
+          "failureRule": "A foreign PoolId reverts with UnexpectedPool. No other condition in this callback can fail on this quadrant, and a zero specified amount produces a zero delta."
+        },
+        "zeroForOneExactOutput": {
+          "supported": true,
+          "specifiedCurrency": "currency1",
+          "unspecifiedCurrency": "currency0",
+          "amountSign": "positive-exact-output",
+          "specifiedComponent": {
+            "mode": "positive-only",
+            "formula": "ceil(requested net currency1 output times 2000 divided by (1000000 minus 2000)); the residual AMM amount becomes the requested output plus this charge, so the pool executes the gross amount and the trader still receives exactly the requested net amount.",
+            "minimum": "zero base units when the requested output is zero",
+            "maximum": "the grossed-up charge for the requested output, always strictly below the gross amount the pool executes",
+            "minimumSign": "zero",
+            "maximumSign": "positive",
+            "positiveSettlementActions": [
+              {
+                "order": 1,
+                "actor": "hook",
+                "operation": "internal-ledger-update",
+                "currency": "specified",
+                "assetKind": "erc20",
+                "deltaOwner": "hook",
+                "deltaEffect": "none",
+                "counterparty": "not-applicable",
+                "authorizationRule": null,
+                "msgValueRule": null,
+                "amountRule": "Book this charge to the platform and manager balances for this exact PoolId and currency, rounding the platform half up and giving the manager the remainder so the two always sum to the charge.",
+                "completionDeadline": "before-hook-return"
+              },
+              {
+                "order": 2,
+                "actor": "hook",
+                "operation": "take",
+                "currency": "specified",
+                "assetKind": "erc20",
+                "deltaOwner": "hook",
+                "deltaEffect": "negative",
+                "counterparty": "hook",
+                "authorizationRule": null,
+                "msgValueRule": null,
+                "amountRule": "Take exactly the positive currency1 credit created by this beforeSwap delta, inside the afterSwap callback of the same swap and before that callback returns.",
+                "completionDeadline": "before-hook-return"
+              }
+            ],
+            "negativeSettlementActions": []
+          },
+          "unspecifiedComponent": {
+            "mode": "zero-only",
+            "formula": null,
+            "minimum": "0",
+            "maximum": "0",
+            "minimumSign": "zero",
+            "maximumSign": "zero",
+            "positiveSettlementActions": [],
+            "negativeSettlementActions": []
+          },
+          "residualAmmEquation": "amountSpecified-plus-specifiedDelta",
+          "finalCallerDeltaEquation": "pool-manager-swap-delta-minus-hook-delta",
+          "specifiedDeltaCanConsumeEntireAmount": false,
+          "zeroAmmLeg": "forbidden",
+          "rounding": "The charge is grossed up with a ceiling so the realised rate never drifts below the declared 2000 hundredths of a bip of the gross executed amount. The platform half is then rounded up and the manager takes the remainder, so per-swap rounding can never leave the platform short and no base unit is created or lost.",
+          "partialFillRule": "The hook records the gross amount it expects the pool to execute and compares it against the executed currency1 amount in afterSwap. Any difference reverts with PartialFillRejected rather than charging the trader for volume the pool never executed.",
+          "slippageInvariant": "The trader receives exactly the requested net output, so a minimum-output bound is unaffected. The maximum-input bound is applied by the router to the final caller delta after the charge has moved the executed gross amount.",
+          "failureRule": "A foreign PoolId reverts with UnexpectedPool, a charge that does not fit in int128 reverts with AmountTooLarge, and a mismatch between the priced and executed amount reverts with PartialFillRejected. A zero requested output produces a zero charge and no balance."
+        },
+        "oneForZeroExactInput": {
+          "supported": true,
+          "specifiedCurrency": "currency1",
+          "unspecifiedCurrency": "currency0",
+          "amountSign": "negative-exact-input",
+          "specifiedComponent": {
+            "mode": "positive-only",
+            "formula": "floor(specified gross currency1 input times 2000 divided by 1000000); the residual AMM amount becomes the specified input minus this charge, so the pool swaps only what is left after the charge.",
+            "minimum": "zero base units when the specified input is zero or below the smallest chargeable amount",
+            "maximum": "the lower of the 2000 hundredths-of-a-bip charge and the specified amount minus one base unit",
+            "minimumSign": "zero",
+            "maximumSign": "positive",
+            "positiveSettlementActions": [
+              {
+                "order": 1,
+                "actor": "hook",
+                "operation": "internal-ledger-update",
+                "currency": "specified",
+                "assetKind": "erc20",
+                "deltaOwner": "hook",
+                "deltaEffect": "none",
+                "counterparty": "not-applicable",
+                "authorizationRule": null,
+                "msgValueRule": null,
+                "amountRule": "Book this charge to the platform and manager balances for this exact PoolId and currency, rounding the platform half up and giving the manager the remainder so the two always sum to the charge.",
+                "completionDeadline": "before-hook-return"
+              },
+              {
+                "order": 2,
+                "actor": "hook",
+                "operation": "take",
+                "currency": "specified",
+                "assetKind": "erc20",
+                "deltaOwner": "hook",
+                "deltaEffect": "negative",
+                "counterparty": "hook",
+                "authorizationRule": null,
+                "msgValueRule": null,
+                "amountRule": "Take exactly the positive currency1 credit created by this beforeSwap delta, inside the afterSwap callback of the same swap and before that callback returns.",
+                "completionDeadline": "before-hook-return"
+              }
+            ],
+            "negativeSettlementActions": []
+          },
+          "unspecifiedComponent": {
+            "mode": "zero-only",
+            "formula": null,
+            "minimum": "0",
+            "maximum": "0",
+            "minimumSign": "zero",
+            "maximumSign": "zero",
+            "positiveSettlementActions": [],
+            "negativeSettlementActions": []
+          },
+          "residualAmmEquation": "amountSpecified-plus-specifiedDelta",
+          "finalCallerDeltaEquation": "pool-manager-swap-delta-minus-hook-delta",
+          "specifiedDeltaCanConsumeEntireAmount": false,
+          "zeroAmmLeg": "forbidden",
+          "rounding": "The charge is rounded down so the trader keeps the remainder, and it is explicitly bounded to the specified amount minus one base unit so a residual AMM leg always exists. The platform half is rounded up and the manager takes the remainder, so the two halves always sum to the charge exactly.",
+          "partialFillRule": "The hook records the residual it expects the pool to execute and compares it against the executed currency1 amount in afterSwap. Any difference reverts with PartialFillRejected rather than charging the trader for volume the pool never executed.",
+          "slippageInvariant": "The trader's currency1 outlay is exactly the amount it specified, and the router's minimum currency0 output is applied to the final caller delta after the charge has reduced the residual the pool swaps.",
+          "failureRule": "A foreign PoolId reverts with UnexpectedPool, a charge that does not fit in int128 reverts with AmountTooLarge, and a mismatch between the priced and executed residual reverts with PartialFillRejected. A zero specified amount produces a zero charge and no balance."
+        },
+        "oneForZeroExactOutput": {
+          "supported": true,
+          "specifiedCurrency": "currency0",
+          "unspecifiedCurrency": "currency1",
+          "amountSign": "positive-exact-output",
+          "specifiedComponent": {
+            "mode": "zero-only",
+            "formula": null,
+            "minimum": "0",
+            "maximum": "0",
+            "minimumSign": "zero",
+            "maximumSign": "zero",
+            "positiveSettlementActions": [],
+            "negativeSettlementActions": []
+          },
+          "unspecifiedComponent": {
+            "mode": "zero-only",
+            "formula": null,
+            "minimum": "0",
+            "maximum": "0",
+            "minimumSign": "zero",
+            "maximumSign": "zero",
+            "positiveSettlementActions": [],
+            "negativeSettlementActions": []
+          },
+          "residualAmmEquation": "amountSpecified-plus-specifiedDelta",
+          "finalCallerDeltaEquation": "pool-manager-swap-delta-minus-hook-delta",
+          "specifiedDeltaCanConsumeEntireAmount": false,
+          "zeroAmmLeg": "forbidden",
+          "rounding": "beforeSwap returns an exact zero delta on this quadrant, so no rounding happens here. The quote asset is the unspecified currency and its charge is grossed up with a ceiling in afterSwap under the post-action policy.",
+          "partialFillRule": "beforeSwap prices nothing on this quadrant, so a price-limited or partially filled swap simply produces a smaller executed input and the afterSwap charge follows that executed amount exactly.",
+          "slippageInvariant": "The router's maximum input is applied to the final caller delta after the afterSwap charge, never to a pre-charge quote, because the beforeSwap delta is exactly zero here.",
+          "failureRule": "A foreign PoolId reverts with UnexpectedPool. No other condition in this callback can fail on this quadrant, and a zero specified amount produces a zero delta."
+        }
+      },
+      "executionEvent": "FeeAccrued(bytes32 indexed poolId,address indexed currency,address indexed beneficiary,uint256 amount)"
+    },
+    "postReturnDeltaAccounting": {
+      "afterSwap": {
+        "used": true,
+        "returnedDeltaShape": "unspecified-currency-int128",
+        "positiveMeaning": "hook-credit-caller-debit",
+        "negativeMeaning": "hook-debt-caller-credit",
+        "backingSource": "The hook books the claimable balances and takes the exact combined charge in WETH9 from PoolManager into this contract in the same callback, before it returns. Both happen atomically, so a booked balance always has matching WETH behind it. Canonical pool reserves are never used as backing.",
+        "callerDeltaEquation": "protocol-delta-minus-hook-delta",
+        "componentPolicies": {
+          "unspecified": {
+            "mode": "positive-only",
+            "formula": "On zeroForOne exact input: floor(executed gross currency1 output times 2000 divided by 1000000). On oneForZero exact output: ceil(executed net currency1 input times 2000 divided by (1000000 minus 2000)). Zero on the two quadrants already charged in beforeSwap.",
+            "minimum": "zero base units when the executed amount is zero or below the smallest chargeable amount",
+            "maximum": "the 2000 hundredths-of-a-bip charge on the executed gross currency1 amount, always strictly below that executed amount",
+            "minimumSign": "zero",
+            "maximumSign": "positive",
+            "positiveSettlementActions": [
+              {
+                "order": 1,
+                "actor": "hook",
+                "operation": "internal-ledger-update",
+                "currency": "unspecified",
+                "assetKind": "erc20",
+                "deltaOwner": "hook",
+                "deltaEffect": "none",
+                "counterparty": "not-applicable",
+                "authorizationRule": null,
+                "msgValueRule": null,
+                "amountRule": "Book the combined charge to the platform and manager balances for this exact PoolId and currency; with a vacant seat, or in the block an address took the seat, the manager half joins pendingRent so nothing is left unowned.",
+                "completionDeadline": "before-hook-return"
+              },
+              {
+                "order": 2,
+                "actor": "hook",
+                "operation": "take",
+                "currency": "unspecified",
+                "assetKind": "erc20",
+                "deltaOwner": "hook",
+                "deltaEffect": "negative",
+                "counterparty": "hook",
+                "authorizationRule": null,
+                "msgValueRule": null,
+                "amountRule": "Take the sum of this afterSwap charge and any charge already returned by beforeSwap for the same swap, in WETH9, into this contract before the callback returns.",
+                "completionDeadline": "before-hook-return"
+              }
+            ],
+            "negativeSettlementActions": []
+          },
+          "currency0": null,
+          "currency1": null
+        },
+        "bounds": "The returned delta is never negative, never exceeds 2000 hundredths of a bip of the executed gross currency1 amount, and can never consume the whole executed amount because the charge is explicitly capped at the executed amount minus one base unit.",
+        "rounding": "Exact-input and gross-output legs round down so the trader keeps the remainder; exact-output and gross-input legs are grossed up with a ceiling so the realised rate never drifts below the declared rate. Every uint256 to int128 conversion is checked and reverts with AmountTooLarge.",
+        "slippageOrMinimums": "The router applies its minimum output or maximum input to the final caller delta after the hook charge, not to a pre-charge quote. The hook adds no bound of its own and consumes no deadline or signature.",
+        "failureRule": "A zero executed amount returns zero and creates no balance and no event. A foreign PoolId, a failed take, a failed ledger write or a conversion overflow reverts the whole swap before unlock ends. A donation that cannot land is skipped and never reverts the swap.",
+        "executionEvent": "FeeAccrued(bytes32 indexed poolId,address indexed currency,address indexed beneficiary,uint256 amount)"
+      },
+      "afterAddLiquidity": {
+        "used": false,
+        "returnedDeltaShape": null,
+        "positiveMeaning": null,
+        "negativeMeaning": null,
+        "backingSource": null,
+        "callerDeltaEquation": null,
+        "componentPolicies": {
+          "unspecified": null,
+          "currency0": null,
+          "currency1": null
+        },
+        "bounds": null,
+        "rounding": null,
+        "slippageOrMinimums": null,
+        "failureRule": null,
+        "executionEvent": null
+      },
+      "afterRemoveLiquidity": {
+        "used": false,
+        "returnedDeltaShape": null,
+        "positiveMeaning": null,
+        "negativeMeaning": null,
+        "backingSource": null,
+        "callerDeltaEquation": null,
+        "componentPolicies": {
+          "unspecified": null,
+          "currency0": null,
+          "currency1": null
+        },
+        "bounds": null,
+        "rounding": null,
+        "slippageOrMinimums": null,
+        "failureRule": null,
+        "executionEvent": null
+      }
+    },
+    "erc6909Claims": {
+      "used": false,
+      "currencyIdDerivation": null,
+      "claimBalanceScope": null,
+      "poolIdIncludedInClaimId": null,
+      "owner": null,
+      "operatorPolicy": null,
+      "mintFlow": null,
+      "burnFlow": null,
+      "takeSettleFlow": null,
+      "liabilityKeys": null,
+      "liabilityKeyDimensions": [],
+      "crossPoolNetting": null,
+      "transferPolicy": null,
+      "redemption": null,
+      "roundingDust": null,
+      "aggregateSolvencyEquation": null
+    },
+    "nestedActions": {
+      "used": true,
+      "directPoolManagerCalls": true,
+      "routerCalls": false,
+      "allowedActions": [
+        "donate",
+        "take",
+        "settle"
+      ],
+      "samePoolPolicy": "Only three actions are ever initiated on the canonical pool, all inside afterSwap: donate the accrued rent to in-range positions, take the combined charge in WETH9, and settle the donated amount. PoolManager.swap and modifyLiquidity are never called from any path in this hook, so no same-pool swap exists that could be charged or skipped, and a test proves there is no path from the hook to PoolManager.swap.",
+      "crossPoolPolicy": "No other pool is ever touched. Every nested call passes the canonical PoolKey or PoolId derived from the hook's own immutables, so a second pool cannot be reached even if one existed.",
+      "callbackSuppression": "Uniswap v4 skips a hook's own callbacks when that hook calls PoolManager, so the donate initiated here does not re-enter beforeDonate or afterDonate. That is safe because those bits are disabled, donate moves no priced amount, and no charge depends on a suppressed callback.",
+      "directCallbackBehavior": "self-call-hook-callbacks-skipped",
+      "routerCallbackBehavior": null,
+      "maximumDepth": 1,
+      "stateCommitOrder": "Rent is accrued and the manager evicted before any delta is computed; the charge is taken and the claimable balances credited before pendingRent is zeroed; pendingRent is zeroed before donate is called, so a revert anywhere after that point rolls the whole swap back and no amount can be donated twice.",
+      "transientDeltaOwner": "The hook itself owns every delta it creates. take reduces the hook's own credit and the donate debt is settled by the hook with its own WETH9 balance; no caller, router or beneficiary delta is ever moved on someone else's behalf.",
+      "syncInterleaving": "The donation settlement is an uninterrupted PoolManager.sync of WETH9, a SafeERC20 transfer of the exact donated amount to PoolManager and a PoolManager.settle, with no other action between them, so the synced reserve checkpoint cannot be overwritten before it is consumed.",
+      "slippageAggregation": "The nested actions add no priced leg. donate moves a fixed WETH9 amount already owed by the manager and take moves the exact computed charge, so neither can widen the trader's final delta beyond the declared charge and neither participates in the router's slippage bound.",
+      "failureAtomicity": "A donation is attempted only when the amount clears a minimum and the pool has in-range positions; otherwise it is skipped and the rent stays owed, so a swap can never revert because of an absent recipient. When a donation is attempted, the returned donate delta and the settled amount are both checked against the intended amount and a mismatch reverts the whole swap with DonationMismatch or SettlementMismatch. Any failure inside take, sync, transfer or settle likewise reverts the whole swap and leaves no partial settlement."
+    }
+  },
+  "noHookArchitecture": null,
+  "valueFlows": [
+    {
+      "id": "launch-liquidity-formation",
+      "action": "form the canonical pool's first position",
+      "asset": "launched token and WETH9",
+      "from": "the launch wallet and the freshly minted fixed supply",
+      "to": "the canonical pool inside PoolManager",
+      "amountRule": "One full-range position of the declared size, settled at whatever the pool requires and bounded by the declared maxToken and maxQuote caps.",
+      "settlement": "Inside one unlock: modifyLiquidity, then sync, transfer and settle for each owed currency, then every unspent unit is returned to the launch wallet.",
+      "failure": "A positive delta, an over-budget settlement or any other mismatch reverts the whole launch transaction and leaves no token, hook or pool behind."
+    },
+    {
+      "id": "programmable-volume-fee-accrual",
+      "action": "accrue the hook-owned volume charge",
+      "asset": "WETH9, the canonical pool's quote asset",
+      "from": "the caller's swap delta on the canonical PoolKey",
+      "to": "claimable balances inside the hook for the platform and the manager",
+      "amountRule": "2000 hundredths of a bip of the executed gross WETH9 amount for the quadrant, rounded down on gross-output legs and grossed up on gross-input legs, and always strictly below the executed amount.",
+      "settlement": "The charge is returned as a beforeSwap specified delta or an afterSwap unspecified delta, booked to the two balances and then taken in full from PoolManager inside the same afterSwap callback.",
+      "failure": "A zero executed amount accrues nothing. Any arithmetic, take or ledger failure reverts the whole swap and leaves no charge and no balance behind."
+    },
+    {
+      "id": "hook-fee-claim",
+      "action": "claim an accrued volume-fee balance",
+      "asset": "WETH9",
+      "from": "the hook's own WETH9 balance",
+      "to": "a destination the claimant chooses for that individual claim",
+      "amountRule": "No more than the caller's own recorded balance for this PoolId and currency; the immutable owner's balance can only be moved by the immutable owner.",
+      "settlement": "Checks and effects run before the SafeERC20 transfer, so a failed transfer reverts the decrement and leaves the balance intact.",
+      "failure": "A zero destination reverts with ZeroAddress, a zero or over-balance amount reverts with NothingOwed, and a failing transfer blocks only that claim."
+    },
+    {
+      "id": "lp-fee-to-providers",
+      "action": "apply the auctioned LP fee",
+      "asset": "both canonical pool currencies",
+      "from": "swap proceeds inside PoolManager accounting",
+      "to": "the canonical pool's own providers",
+      "amountRule": "Core applies only the flagged uint24 between 100 and 20000 hundredths of a bip returned by beforeSwap, or the stored 3000 while the auction is vacant.",
+      "settlement": "The hook returns no token delta for this fee and never takes custody of it; core credits it to positions exactly as it does for any v4 pool.",
+      "failure": "An out-of-range write reverts with InvalidLpFee before it is stored; a vacant auction falls back to the stored 3000 and no swap can fail because of it."
+    },
+    {
+      "id": "auction-deposit",
+      "action": "post an auction deposit",
+      "asset": "WETH9",
+      "from": "the bidder's own wallet",
+      "to": "the bidder's own deposit balance inside the hook",
+      "amountRule": "Exactly the amount the caller passes. A bid that takes the seat is charged one block of the incoming rent first and must still cover 100 blocks of it afterwards, so a handover needs 101 blocks of rent in the deposit; an incumbent raising its own rent needs 100.",
+      "settlement": "SafeERC20 transferFrom into the hook, then the caller's balance and the aggregate total are increased by the same amount.",
+      "failure": "A missing approval or a failed transfer reverts the whole call; a rent below the minimum reverts with RentTooLow and a short balance with DepositTooSmall."
+    },
+    {
+      "id": "auction-deposit-withdrawal",
+      "action": "withdraw an auction deposit",
+      "asset": "WETH9",
+      "from": "the caller's own deposit balance inside the hook",
+      "to": "a destination the caller chooses for that withdrawal",
+      "amountRule": "No more than the caller's own remaining balance after rent owed up to the current block has been charged.",
+      "settlement": "Rent is accrued first, the balance and the aggregate are decremented, a manager that falls below its floor is evicted in the same call, then SafeERC20 transfers the amount.",
+      "failure": "A zero destination reverts with ZeroAddress and a zero or over-balance amount reverts with InsufficientDeposit; no role and no other account can block or delay it."
+    },
+    {
+      "id": "rent-accrual",
+      "action": "charge the manager its per-block rent",
+      "asset": "WETH9",
+      "from": "the current manager's own deposit balance",
+      "to": "the pendingRent balance owed to the pool's in-range positions",
+      "amountRule": "rentPerBlock multiplied by the number of blocks since the last accrual, capped at the remaining deposit so it can never overdraw. Taking the seat additionally charges one block of the incoming rent immediately, so a tenure is never free.",
+      "settlement": "One constant-time storage update at the top of every state-changing entry point and inside beforeSwap, plus the one-block entry charge inside bid; exhausting the deposit evicts the manager in the same update.",
+      "failure": "It cannot revert a swap. With no manager nothing accrues, and an exhausted deposit evicts deterministically and returns the pool to the stored 3000 fee."
+    },
+    {
+      "id": "rent-donation",
+      "action": "donate accrued rent to the pool's in-range positions",
+      "asset": "WETH9",
+      "from": "the hook's pendingRent balance",
+      "to": "the canonical pool's in-range positions through PoolManager.donate",
+      "amountRule": "The whole pendingRent balance once it clears the minimum donation, donated on the quote side of the canonical PoolKey.",
+      "settlement": "pendingRent is zeroed, donate is called on the canonical key, then sync, transfer and settle move the exact amount to PoolManager inside the same afterSwap callback.",
+      "failure": "Skipped, never reverted, when the amount is below the minimum or the pool has no in-range positions; the rent stays owed and is donated on a later swap. A donate whose returned delta or settled amount does not match the intended amount reverts the whole swap with DonationMismatch or SettlementMismatch rather than losing the rent."
+    }
+  ],
+  "authorities": [
+    {
+      "role": "programmable-fee-owner",
+      "controller": "0x4957f49620AFf3Adbbe8195a4f633E49cc93376c, a Solidity constant in PoolRentHook with no setter and no storage slot.",
+      "capabilities": [
+        "claim its own accrued volume-fee balance to a destination it chooses for each individual claim"
+      ],
+      "mutable": false,
+      "delay": "None. Claims are available at any block, with no schedule, expiry, vesting or approval step.",
+      "userExitImpact": "None. It cannot halt the pool, block a swap, block a position exit, change the fee, or reach any other account's deposit or balance."
+    },
+    {
+      "role": "pool-manager",
+      "controller": "Whoever currently wins the permissionless rent auction. The address lives in a public hook storage slot written only by the bid path and cleared only by deterministic eviction; nobody appoints it.",
+      "capabilities": [
+        "set the pool LP fee inside the immutable range 100 to 20000 hundredths of a bip",
+        "claim its own accrued volume-fee balance to a destination it chooses per claim"
+      ],
+      "mutable": true,
+      "delay": "None beyond the rules: after the incumbent 100-block minimum tenure, at least 110 percent of the standing rent, one block of it paid on entry, and 100 blocks still covered.",
+      "userExitImpact": "None. The manager cannot halt the pool, reject a swap, block a position exit, seize another account deposit or reach the Programmable balance. The protection window restarts only on a genuine handover, never when the incumbent re-bids its own rent, so the seat always stays contestable. With no manager the pool keeps trading at the stored 3000 fee."
+    },
+    {
+      "role": "launch wallet",
+      "controller": "The single address fixed in the PoolRentLauncher constructor when the launcher is deployed; it cannot be changed afterwards.",
+      "capabilities": [
+        "execute the one-time launch that deploys the token and hook, initializes the canonical pool and seeds its first position"
+      ],
+      "mutable": false,
+      "delay": "None. The launch is single-use: a second call reverts with AlreadyLaunched.",
+      "userExitImpact": "None after the launch transaction returns. The launcher exposes no decrease, collect, sweep, arbitrary-call or recovery path and keeps no balance of its own."
+    },
+    {
+      "role": "any account",
+      "controller": "Any Ethereum address. No allowlist, registry, appointment or identity check exists on any of these paths.",
+      "capabilities": [
+        "post a WETH deposit and bid a per-block rent for the manager role",
+        "withdraw its own deposit at any block",
+        "trigger rent accrual and deterministic eviction through poke"
+      ],
+      "mutable": false,
+      "delay": "None. Every one of these entry points is callable in any block by anyone.",
+      "userExitImpact": "None on anyone else. These paths only move the caller's own deposit or advance the auction state that any other account can advance too."
+    },
+    {
+      "role": "administrator, guardian or operator",
+      "controller": "No such controller exists. No contract in this submission stores an owner, admin, guardian, operator or governance address.",
+      "capabilities": [
+        "no capability: no contract here exposes an administrative, ownership, halt, replacement, sweep or recovery entry point"
+      ],
+      "mutable": false,
+      "delay": "Not applicable, because no such role can be created after deployment.",
+      "userExitImpact": "None. There is no role that could ever block a swap, a position exit, a deposit withdrawal or a fee claim."
+    },
+    {
+      "role": "test quote token minter",
+      "controller": "Any caller of test/utils/TestQuoteToken.sol, a local stand-in for WETH9 used only to fund accounts in the Foundry suite.",
+      "capabilities": [
+        "mint the local test-only ERC-20 used to fund accounts in the Foundry suite"
+      ],
+      "mutable": false,
+      "delay": "Not applicable. The capability exists only inside the test harness and has no on-chain counterpart.",
+      "userExitImpact": "None. No launched pool, deposit, liability or user balance depends on it; the mainnet-fork suites use the real WETH9 and exercise the identical code paths."
+    }
+  ],
+  "dependencies": {
+    "onchain": [
+      {
+        "id": "v4-poolmanager-ethereum",
+        "name": "Uniswap v4 PoolManager",
+        "kind": "core singleton",
+        "repository": "https://github.com/Uniswap/v4-core.git",
+        "revision": null,
+        "packageVersion": "1.0.0",
+        "license": "MIT or BUSL-1.1 per file",
+        "sourceProvenance": "pinned-source",
+        "deploymentRecordId": "v4-poolmanager-ethereum",
+        "chainAddress": "0x000000000004444c5dc75cB358380D2e3dE08A90",
+        "runtimeHash": "0x785f1014552b7ce7d5fb7d0c970ca60edee94fd00425d7ca21609acac7ce1293",
+        "deploymentEvidencePath": "submissions/poolrent/evidence/deployment-v4-poolmanager-ethereum.json",
+        "trust": "Address, chain and record id come from the committed deployment snapshot; packageVersion repeats that feed's declared source ref. The authoritative binding is the deployed runtime: the recorded hash is keccak256 of the runtime code observed at mainnet blocks 25700000 and 25701767.",
+        "failure": "The address is immutable in the hook and authenticated on every callback. If it did not carry the expected runtime, every launch and every callback would revert rather than execute against foreign code.",
+        "fallback": "None, and none is wanted. There is no second PoolManager and no path that silently substitutes one."
+      },
+      {
+        "id": "weth9-ethereum",
+        "name": "Wrapped Ether WETH9",
+        "kind": "quote-asset ERC-20",
+        "repository": "https://etherscan.io/address/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2#code",
+        "revision": null,
+        "packageVersion": "bzzr0:deb4c2ccab3c2fdca32ab3f46728389c2fe2c165d5fafa07661e4e004f6c344a",
+        "license": "GPL-3.0",
+        "sourceProvenance": "verified-explorer-source",
+        "deploymentRecordId": null,
+        "chainAddress": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+        "runtimeHash": "0xd0a06b12ac47863b5c7be4185c2deaad1c61557033f56c7d4ea74429cbb25e23",
+        "deploymentEvidencePath": "submissions/poolrent/evidence/deployment-weth9-ethereum.json",
+        "trust": "This contract predates compiler-version metadata, so packageVersion records the exact solc source-metadata identifier read out of the deployed runtime and repository records the explorer-verified source page. No git revision is claimed because none is reproducible from this repository. The recorded runtime hash is keccak256 of the runtime code observed at mainnet blocks 25700000 and 25701767.",
+        "failure": "Every movement uses SafeERC20, so a false or malformed return reverts the individual call. It is a standard token with no transfer fee, no rebase and no callback, and the hook depends on nothing else about it.",
+        "fallback": "None. The quote asset is an immutable constructor argument of the hook and cannot be swapped for another token after deployment."
+      }
+    ],
+    "offchain": [
+      {
+        "id": "uniswap-v4-core-source",
+        "name": "Uniswap v4 core source",
+        "kind": "solidity source library used at build time",
+        "repository": "https://github.com/Uniswap/v4-core.git",
+        "revision": "59d3ecf53afa9264a16bba0e38f4c5d2231f80bc",
+        "packageVersion": null,
+        "license": "MIT or BUSL-1.1 per file",
+        "sourceProvenance": "pinned-source",
+        "deploymentRecordId": null,
+        "chainAddress": null,
+        "runtimeHash": null,
+        "deploymentEvidencePath": null,
+        "trust": "Pinned to the exact commit of the Programmable-tested baseline and vendored as a git submodule, so the reviewed import closure is reproducible byte for byte.",
+        "failure": "A drifted commit changes the compiled bytecode and therefore the mined hook address, so the launch would revert in the hook constructor rather than deploy a mis-permissioned hook.",
+        "fallback": "None. The baseline commit is part of the dependency lock and any change is a new revision of this submission."
+      },
+      {
+        "id": "uniswap-v4-periphery-source",
+        "name": "Uniswap v4 periphery source",
+        "kind": "solidity source library used in tests",
+        "repository": "https://github.com/Uniswap/v4-periphery.git",
+        "revision": "ad04c9f24a170accf5ea1b2836bbafd514537ca6",
+        "packageVersion": null,
+        "license": "MIT",
+        "sourceProvenance": "pinned-source",
+        "deploymentRecordId": null,
+        "chainAddress": null,
+        "runtimeHash": null,
+        "deploymentEvidencePath": null,
+        "trust": "Pinned to the exact commit of the Programmable-tested baseline; it supplies the salt-mining helper used by the tests and the launch script and is not part of the deployed contracts.",
+        "failure": "A drifted commit would change the mined salt search and be caught by the hook constructor's own permission-bit check before any pool could exist.",
+        "fallback": "None. The baseline commit is part of the dependency lock."
+      },
+      {
+        "id": "openzeppelin-uniswap-hooks-source",
+        "name": "OpenZeppelin uniswap-hooks source",
+        "kind": "solidity source library used at build time",
+        "repository": "https://github.com/OpenZeppelin/uniswap-hooks.git",
+        "revision": "26dc8e53f812a1ca390d470342adb6cd8c3286ad",
+        "packageVersion": null,
+        "license": "MIT",
+        "sourceProvenance": "pinned-source",
+        "deploymentRecordId": null,
+        "chainAddress": null,
+        "runtimeHash": null,
+        "deploymentEvidencePath": null,
+        "trust": "Pinned to the exact commit of the Programmable-tested baseline. It supplies the base hook that stores the immutable PoolManager and authenticates every callback against it.",
+        "failure": "A drifted commit changes the compiled bytecode and therefore the mined hook address, so the launch reverts instead of producing a hook with the wrong permission bits.",
+        "fallback": "None. The baseline commit is part of the dependency lock."
+      },
+      {
+        "id": "openzeppelin-contracts-source",
+        "name": "OpenZeppelin Contracts source",
+        "kind": "solidity source library used at build time",
+        "repository": "https://github.com/OpenZeppelin/openzeppelin-contracts.git",
+        "revision": "21c8312b022f495ebe3621d5daeed20552b43ff9",
+        "packageVersion": null,
+        "license": "MIT",
+        "sourceProvenance": "pinned-source",
+        "deploymentRecordId": null,
+        "chainAddress": null,
+        "runtimeHash": null,
+        "deploymentEvidencePath": null,
+        "trust": "Pinned to the exact commit of the Programmable-tested baseline. It supplies the plain fixed-supply ERC-20 base and the SafeERC20 wrapper used for every quote-asset movement.",
+        "failure": "A drifted commit changes the compiled bytecode of both the token and the hook and is caught by the reproducible build and the hook constructor's own check.",
+        "fallback": "None. The baseline commit is part of the dependency lock."
+      },
+      {
+        "id": "forge-std-source",
+        "name": "Forge Standard Library",
+        "kind": "solidity test library",
+        "repository": "https://github.com/foundry-rs/forge-std.git",
+        "revision": "3b20d60d14b343ee4f908cb8079495c07f5e8981",
+        "packageVersion": null,
+        "license": "Apache-2.0",
+        "sourceProvenance": "pinned-source",
+        "deploymentRecordId": null,
+        "chainAddress": null,
+        "runtimeHash": null,
+        "deploymentEvidencePath": null,
+        "trust": "Pinned to the exact commit of the Programmable-tested baseline. It is a test-only dependency and none of its code enters the deployed contracts.",
+        "failure": "A drifted commit can only change the test harness, which is caught by rerunning the recorded commands against the pinned commit.",
+        "fallback": "None. The baseline commit is part of the dependency lock."
+      }
+    ]
+  },
+  "operations": {
+    "keeper": {
+      "required": false,
+      "actor": null,
+      "action": null,
+      "cadence": null,
+      "authentication": null,
+      "funding": null,
+      "failure": null,
+      "fallback": null
+    },
+    "oracle": {
+      "required": false,
+      "actor": null,
+      "action": null,
+      "cadence": null,
+      "authentication": null,
+      "funding": null,
+      "failure": null,
+      "fallback": null
+    },
+    "monitoring": "Index FeeAccrued, FeeClaimed, RentAccrued, RentDonated, DepositAdded, DepositWithdrawn and ManagerChanged by PoolId and address, and compare the reconstructed totals against the hook's own totalLiabilities view and its confirmed WETH9 balance at the same block. Alert whenever the balance falls below the reconstructed total, whenever pendingRent grows across many swaps without a donation, or whenever a callback reverts.",
+    "incidentResponse": "The hook is immutable and exposes no halt, replacement, sweep or recovery entry point, so incident response is disclosure rather than intervention: publish the exact PoolId, the affected block range and the reconstructed balances, stop recommending new launches from this revision, and let every account use the exit paths that remain open in every case, namely claiming an accrued balance and withdrawing an own deposit."
+  },
+  "integration": {
+    "routerGeneration": null,
+    "routerDependencyId": null,
+    "permit2DependencyId": null,
+    "stateViewDependencyId": null,
+    "quoterDependencyId": null,
+    "sdkDependencies": [],
+    "routerActionProfile": {
+      "routerVersionExplicit": null,
+      "universalRouterCommand": null,
+      "v4Actions": [],
+      "settlementMode": null,
+      "permit2Mode": null,
+      "finalSwapDeltaValidated": null
+    },
+    "appSourcePaths": [],
+    "integrationTestPaths": [],
+    "quoteExecutionParity": null,
+    "swapModes": [
+      "zeroForOne-exactInput",
+      "zeroForOne-exactOutput",
+      "oneForZero-exactInput",
+      "oneForZero-exactOutput"
+    ],
+    "partialFills": "Only the amount PoolManager actually executed is ever used as a basis. On the two quadrants charged in afterSwap an unfilled remainder simply reduces the charge. On the two charged in beforeSwap the priced and executed amounts are compared and any difference reverts with PartialFillRejected instead of charging volume the pool never executed.",
+    "slippage": "The hook adds no bound of its own. A router applies its minimum output or maximum input to the final caller delta after the hook charge and the LP fee, never to a pre-charge quote.",
+    "deadline": "The hook consumes no deadline and enforces none. Deadlines remain entirely the router's concern; no hook path depends on block time.",
+    "permit2": "Not used by the hook. The auction deposit path uses a plain ERC-20 allowance through SafeERC20 transferFrom, and swap-side approvals stay between the trader and whatever router it chooses.",
+    "stateReads": "Reads use StateLibrary against the PoolManager for the canonical PoolId only, plus the hook's own public views: currentLpFee, totalLiabilities, isSolvent, manager, rentPerBlock, pendingRent, deposits and feeOwed.",
+    "events": [
+      "FeeAccrued(bytes32 indexed poolId,address indexed currency,address indexed beneficiary,uint256 amount)",
+      "FeeClaimed(bytes32 indexed poolId,address indexed currency,address indexed beneficiary,address to,uint256 amount)",
+      "ManagerChanged(address indexed previousManager,address indexed newManager,uint128 rentPerBlock)",
+      "LpFeeUpdated(address indexed manager,uint24 lpFee)",
+      "RentAccrued(address indexed manager,uint256 amount,uint256 pendingRent)",
+      "RentDonated(uint256 amount)",
+      "DepositAdded(address indexed account,uint256 amount,uint256 balance)",
+      "DepositWithdrawn(address indexed account,address indexed to,uint256 amount,uint256 balance)",
+      "Launched(address indexed token,address indexed hook,bytes32 poolId,uint128 liquidity)"
+    ],
+    "routingAndDiscoverability": {
+      "routingMode": "not-planned",
+      "allowlistTriggers": {
+        "usesDeltaFlag": true,
+        "addressStartsWith91": false,
+        "targetsMajorPair": true,
+        "permissionedPool": false
+      },
+      "uniswapRoutingStatus": "not-applicable",
+      "hookRegistryStatus": "not-submitted",
+      "customHookDataRequired": false,
+      "standardRouterCompatible": true,
+      "permissionedRouting": {
+        "required": false,
+        "minimumRouterGeneration": null,
+        "adapterCurrencyUsed": null,
+        "allowedWrapperBindings": null,
+        "positionManagerBinding": null,
+        "routingAllowlistRequiredPerChain": null
+      },
+      "sourcePaths": [],
+      "testPaths": []
+    },
+    "dataReconstruction": {
+      "mode": "events-only",
+      "eventCoverage": "FeeAccrued reconstructs every increase of a claimable balance and FeeClaimed every decrease, both keyed by PoolId, currency and beneficiary. DepositAdded and DepositWithdrawn reconstruct every deposit balance, RentAccrued every movement from a deposit into pendingRent, and RentDonated every movement out of it. ManagerChanged reconstructs the complete auction history and LpFeeUpdated every fee the manager set. Launched fixes the deployment block, the token, the hook and the PoolId that anchor the whole history.",
+      "cursor": "block-number-transaction-index-log-index",
+      "startBlockPolicy": "Start at the block containing the Launched event emitted by the launcher, which is the first block in which the token, the hook and the canonical PoolId exist. Nothing before that block can affect any balance, so no earlier range is ever scanned.",
+      "finalityDepth": 64,
+      "reorgPolicy": "Every checkpoint stores the block number and the block hash. On each poll the stored hash of the last checkpoint is compared against the chain; on a mismatch the indexer walks back to the last checkpoint whose hash still matches, deletes every derived row above it and replays the canonical logs from there. Balances are only published at or below the finality depth, so a shallow reorganization can never publish a value that is later removed.",
+      "backfillPolicy": "A complete replay always starts from the Launched block and advances in bounded ranges with a strictly increasing cursor; a failed range is retried with the same bounds and never skipped, and the cursor is only advanced after the whole range has been applied. A full rebuild from the launch block reproduces exactly the same balances as an incremental run.",
+      "checkpointPolicy": "One checkpoint per applied range records the block number, the block hash and the cursor triple of the last applied log, written in the same transaction as the derived rows so the two can never disagree.",
+      "freshnessTargetSeconds": 60,
+      "staleAfterSeconds": 900,
+      "freshnessMeasurement": "Lag is the wall-clock difference between the timestamp of the most recently applied finalized block and the current time, published next to every reconstructed balance so a consumer can reject a stale answer itself.",
+      "reconciliation": "At one confirmed block, compare the event-derived totals against the hook's own totalLiabilities view and against the confirmed WETH9 balance of the hook, and compare each per-address balance against the matching feeOwed and deposits view. Withhold the result whenever any of the three disagrees rather than publishing a partially reconciled state.",
+      "reserveReconstruction": {
+        "used": true,
+        "balanceSources": [
+          "WETH9 balanceOf(hook) at one confirmed block, the only asset balance the hook ever carries"
+        ],
+        "liabilitySources": [
+          "FeeAccrued and FeeClaimed logs plus the feeOwed and totalFeeOwed views for claimable balances",
+          "DepositAdded, DepositWithdrawn and RentAccrued logs plus the deposits and totalDeposits views for auction deposits",
+          "RentAccrued and RentDonated logs plus the pendingRent view for rent owed to the pool's in-range positions"
+        ],
+        "attributionKeys": [
+          "poolId",
+          "currency",
+          "beneficiary"
+        ],
+        "solvencyEquation": "balanceOf(hook) >= totalDeposits + pendingRent + totalFeeOwed, evaluated in WETH9 base units at one confirmed block, where each term is reconstructed independently from its own events and cross-checked against the matching contract view.",
+        "poolLiquidityTreatment": "excluded-from-hook-reserves",
+        "donationAndDustPolicy": "A direct WETH9 transfer to the hook creates no balance for anyone and is excluded from every claimable amount; no role can attribute or sweep it. Per-swap directional rounding leaves bounded dust in the same surplus, which is disclosed and covered by the inequality rather than swept or redistributed.",
+        "reconciliation": "Rebuild all three namespaces from finalized logs, compare each against its own contract view and their sum against the confirmed balance, and withhold the whole result whenever any single comparison disagrees."
+      },
+      "sourcePaths": [
+        "src/PoolRentHook.sol",
+        "src/PoolRentLauncher.sol"
+      ],
+      "testPaths": [
+        "test/Invariants.t.sol",
+        "test/Fee.t.sol",
+        "test/Auction.t.sol"
+      ]
+    },
+    "platformHandoff": {
+      "intended": true,
+      "websiteRegistryPath": null,
+      "uiSourcePaths": [],
+      "apiSourcePaths": [],
+      "indexerSourcePaths": [],
+      "testPaths": [],
+      "reviewStatus": "pending-maintainer-review",
+      "maintainerReviewRequired": true,
+      "selfApproval": false,
+      "availabilityClaimed": false,
+      "handoffNotes": "This submission ships Solidity contracts only. No interface, application, service, keeper or indexer is supplied, and none is implied. The events listed above are sufficient for a platform indexer to rebuild every balance and the complete auction history from the launch block, and the hook's totalLiabilities and isSolvent views give a monitor the single check it needs. Every product surface, registry entry, routing decision and availability decision stays with Programmable maintainers; nothing here is presented as accepted, integrated or available."
+    }
+  },
+  "projectSurfaces": [
+    {
+      "id": "poolrent-hook",
+      "kind": "onchain-contract",
+      "name": "PoolRent hook",
+      "summary": "The one immutable hook bound to the canonical PoolKey. It admits exactly one pool, returns the auctioned LP fee, charges and accounts the hook-owned volume fee across all four quadrants, runs the rent auction, and donates accrued rent to the pool's in-range positions.",
+      "executionBoundary": "onchain",
+      "capabilityIds": [
+        "canonical-pool-fee-and-rent-auction"
+      ],
+      "authorityRefs": [
+        "programmable-fee-owner",
+        "pool-manager",
+        "any account"
+      ],
+      "valueFlowRefs": [
+        "programmable-volume-fee-accrual",
+        "hook-fee-claim",
+        "lp-fee-to-providers",
+        "auction-deposit",
+        "auction-deposit-withdrawal",
+        "rent-accrual",
+        "rent-donation"
+      ],
+      "assetRefs": [
+        "weth9"
+      ],
+      "sourcePaths": [
+        "src/PoolRentHook.sol",
+        "src/libraries/PoolRentMath.sol"
+      ],
+      "testPaths": [
+        "test/Fee.t.sol",
+        "test/Auction.t.sol",
+        "test/Invariants.t.sol",
+        "test/Fuzz.t.sol",
+        "test/Smoke.t.sol"
+      ],
+      "schemaPaths": [],
+      "evidencePaths": [],
+      "exposure": {
+        "movesValue": true,
+        "usesSignatures": false,
+        "makesExternalCalls": true,
+        "holdsCustody": true,
+        "handlesPii": false,
+        "usesGeolocation": false,
+        "usesSecrets": false
+      },
+      "profiles": {
+        "authority": {
+          "status": "applicable",
+          "summary": "Three declared roles touch this surface and none of them is administrative: the immutable Programmable owner constant, the rotating auction winner, and any account acting on its own deposit. Every callback additionally authenticates the immutable PoolManager and re-derives the canonical PoolId.",
+          "controls": [
+            "Authenticate every callback against the immutable PoolManager address and revert on any other caller.",
+            "Re-derive the canonical PoolId inside every callback and revert with UnexpectedPool on any other key.",
+            "Scope every claim and every withdrawal to msg.sender's own balance, with no delegate, operator or administrative override."
+          ],
+          "evidenceRefs": []
+        },
+        "valueFlow": {
+          "status": "applicable",
+          "summary": "This surface moves the hook-owned volume charge into two claimable balances, moves rent from a manager's deposit to the pool's in-range positions, and moves WETH9 out again on claims and withdrawals. The LP fee itself is never touched by the hook.",
+          "controls": [
+            "Keep the charge on the executed gross quote-side amount and never on the requested amount.",
+            "Credit the platform half rounded up and give the manager the remainder so the two always sum to the charge exactly.",
+            "Skip a donation that cannot land instead of reverting the swap, and never let rent be donated twice."
+          ],
+          "evidenceRefs": []
+        },
+        "sourceOfTruth": {
+          "status": "applicable",
+          "summary": "Confirmed PoolManager state for the canonical PoolId and the hook's own storage are the only sources of truth. No external feed, signed payload or offchain input is ever read, and every emitted event is keyed by the canonical PoolId.",
+          "controls": [
+            "Key every emitted balance event by the canonical PoolId and the exact currency address.",
+            "Derive the applied LP fee only from hook storage, never from a pool observation a trader could move."
+          ],
+          "evidenceRefs": []
+        },
+        "signaturesReplay": {
+          "status": "not-applicable",
+          "summary": "This surface consumes no signed message and no signed offchain payload. hookData is ignored entirely, no permit path exists, and no authorization anywhere reads a caller identity supplied by a third party.",
+          "controls": [],
+          "evidenceRefs": []
+        },
+        "externalCalls": {
+          "status": "applicable",
+          "summary": "The hook calls exactly two external contracts: the immutable PoolManager for take, donate, sync, settle and updateDynamicLPFee, and the immutable WETH9 quote asset through SafeERC20 for deposits, claims and donation settlement.",
+          "controls": [
+            "Use SafeERC20 for every quote-asset movement and revert on a false or malformed return.",
+            "Follow checks, effects and interactions on every claim and withdrawal so a reentrant recipient sees no stale balance.",
+            "Keep both external targets immutable so no role can point them at another contract."
+          ],
+          "evidenceRefs": []
+        },
+        "custody": {
+          "status": "applicable",
+          "summary": "The hook carries WETH9 for three disjoint purposes: auction deposits owned by their depositor, rent owed to the pool's in-range positions, and claimable volume-fee balances. It carries no position and no other asset.",
+          "controls": [
+            "Keep the three namespaces disjoint and never net one against another.",
+            "Enforce balanceOf(hook) >= totalDeposits + pendingRent + totalFeeOwed as a stateful invariant after every sequence.",
+            "Give every namespace an unconditional exit: withdrawal for deposits, claim for balances, donation for rent."
+          ],
+          "evidenceRefs": []
+        },
+        "piiGeolocation": {
+          "status": "not-applicable",
+          "summary": "The onchain surface collects, stores and emits no personal identity data and no user geolocation of any kind; the only identifiers it handles are Ethereum addresses that the chain already publishes.",
+          "controls": [],
+          "evidenceRefs": []
+        },
+        "secretBoundary": {
+          "status": "not-applicable",
+          "summary": "Nothing in this surface assumes any value can stay confidential. Every parameter, balance and pending amount is public contract state and every branch is deterministic from public inputs.",
+          "controls": [],
+          "evidenceRefs": []
+        },
+        "sourceTestSchema": {
+          "status": "applicable",
+          "summary": "The implementation manifest binds the exact hook and arithmetic source, the compiler build-info artifact and the executable tests reviewed for this boundary, so the reviewed bytes and the reviewed behavior are the same artifact.",
+          "controls": [
+            "Bind every declared source and test path into the review target and the dependency lock.",
+            "Pin the compiler and the whole import closure by exact commit so the reviewed bytecode is reproducible."
+          ],
+          "evidenceRefs": []
+        },
+        "failureRecovery": {
+          "status": "applicable",
+          "summary": "Every failure path reverts atomically or degrades in a declared way: a rejected partial fill reverts the swap, a donation that cannot land is skipped and carried, an exhausted deposit evicts the manager in constant time, and a failing transfer blocks only its own call.",
+          "controls": [
+            "Prove that eviction is constant time and can never revert a swap.",
+            "Prove that a failing claim for one beneficiary blocks no other claim and no withdrawal.",
+            "Prove that a vacant auction leaves the pool trading at the stored default fee."
+          ],
+          "evidenceRefs": []
+        }
+      },
+      "signedDataSource": {
+        "used": false,
+        "signerAuthorityRefs": [],
+        "signatureScheme": null,
+        "payloadSchemaPath": null,
+        "freshnessRule": null,
+        "replayProtection": null,
+        "onchainVerifierSurfaceId": null
+      },
+      "onchainOracleVerifier": {
+        "used": false,
+        "verifiedSourceSurfaceIds": [],
+        "verificationRule": null,
+        "freshnessRule": null,
+        "replayProtection": null,
+        "failureRule": null
+      }
+    },
+    {
+      "id": "poolrent-launch",
+      "kind": "onchain-contract",
+      "name": "PoolRent launcher and token",
+      "summary": "The single-use launcher, the fixed-supply token it deploys, and the Foundry deployment plan that mines both salts. One transaction creates the token, deploys the hook at the mined address, initializes the canonical pool and seeds its first full-range position, and reverts as a whole on any mismatch.",
+      "executionBoundary": "onchain",
+      "capabilityIds": [
+        "canonical-launch"
+      ],
+      "authorityRefs": [
+        "launch wallet"
+      ],
+      "valueFlowRefs": [
+        "launch-liquidity-formation"
+      ],
+      "assetRefs": [
+        "launched-token",
+        "weth9"
+      ],
+      "sourcePaths": [
+        "src/PoolRentLauncher.sol",
+        "src/PoolRentToken.sol",
+        "script/Launch.s.sol"
+      ],
+      "testPaths": [
+        "test/Launch.t.sol",
+        "test/Fork.t.sol",
+        "test/utils/PoolRentFixture.sol",
+        "test/utils/TestQuoteToken.sol",
+        "test/handlers/PoolRentHandler.sol"
+      ],
+      "schemaPaths": [],
+      "evidencePaths": [],
+      "exposure": {
+        "movesValue": true,
+        "usesSignatures": false,
+        "makesExternalCalls": true,
+        "holdsCustody": true,
+        "handlesPii": false,
+        "usesGeolocation": false,
+        "usesSecrets": false
+      },
+      "profiles": {
+        "authority": {
+          "status": "applicable",
+          "summary": "Only the launch wallet fixed at launcher deployment can run the one-time launch, and the launcher can only run it once. The token itself has no owner, minter, pauser or blacklist, and the launcher has no administrative entry point at all.",
+          "controls": [
+            "Reject any caller other than the immutable launch wallet and any second launch attempt.",
+            "Give the token no owner, minter or supply control beyond the single constructor mint."
+          ],
+          "evidenceRefs": []
+        },
+        "valueFlow": {
+          "status": "applicable",
+          "summary": "The launcher creates the whole fixed supply, seeds one full-range position with both currencies inside the same unlock, and returns every unspent unit to the launch wallet before the transaction ends.",
+          "controls": [
+            "Bound both settled amounts by the declared caps and revert on an over-budget settlement.",
+            "Return every unspent token and quote unit to the launch wallet before the launch returns."
+          ],
+          "evidenceRefs": []
+        },
+        "sourceOfTruth": {
+          "status": "applicable",
+          "summary": "The canonical PoolKey and the expected hook address are derived from the launcher's own CREATE2 inputs and the hook's constructor immutables, so the launch is checked against computed values rather than supplied ones.",
+          "controls": [
+            "Re-derive the canonical PoolId and compare it inside the hook before the pool can exist.",
+            "Validate the hook's own permission bits in its constructor so a mis-mined salt cannot produce a live pool."
+          ],
+          "evidenceRefs": []
+        },
+        "signaturesReplay": {
+          "status": "not-applicable",
+          "summary": "The launch path consumes no signed message and no permit. It uses a plain allowance from the launch wallet and is guarded by a single-use flag rather than a nonce.",
+          "controls": [],
+          "evidenceRefs": []
+        },
+        "externalCalls": {
+          "status": "applicable",
+          "summary": "The launcher calls the immutable PoolManager to initialize, unlock and modify liquidity, and calls both ERC-20 currencies through SafeERC20 to settle the seeded position and return the remainder.",
+          "controls": [
+            "Authenticate the unlock callback against the immutable PoolManager and revert on any other caller.",
+            "Use SafeERC20 for every token movement and revert on a false or malformed return."
+          ],
+          "evidenceRefs": []
+        },
+        "custody": {
+          "status": "applicable",
+          "summary": "The launcher holds the whole supply for the duration of the launch transaction and then permanently owns the seeded full-range position. It exposes no decrease, collect, sweep, arbitrary-call or recovery path, so that position can never be pulled by project code.",
+          "controls": [
+            "Expose no decrease, collect, sweep or arbitrary-call entry point on the launcher.",
+            "Return every unspent unit to the launch wallet so the launcher keeps no free balance."
+          ],
+          "evidenceRefs": []
+        },
+        "piiGeolocation": {
+          "status": "not-applicable",
+          "summary": "The launch surface collects, stores and emits no personal identity data and no user geolocation; the only identifiers it records are Ethereum addresses the chain already publishes.",
+          "controls": [],
+          "evidenceRefs": []
+        },
+        "secretBoundary": {
+          "status": "not-applicable",
+          "summary": "Nothing in the launch path assumes any value can stay confidential. The salts, the supply, the start price and the caps are all public calldata and all checks are deterministic from public inputs.",
+          "controls": [],
+          "evidenceRefs": []
+        },
+        "sourceTestSchema": {
+          "status": "applicable",
+          "summary": "The implementation manifest binds the exact launcher and token source, the compiler build-info artifact and the launch and fork tests reviewed for this boundary, including the pinned-block fork run against the deployed mainnet PoolManager and WETH9.",
+          "controls": [
+            "Bind every declared launch source and test path into the review target and the dependency lock.",
+            "Keep the pinned-block fork suite and the current-head suite separate and record both results."
+          ],
+          "evidenceRefs": []
+        },
+        "failureRecovery": {
+          "status": "applicable",
+          "summary": "The launch is all or nothing: a wrong salt, a foreign PoolKey, a mismatched start price, an unexpected delta or an over-budget settlement reverts the whole transaction, leaving no token, no hook and no pool behind.",
+          "controls": [
+            "Revert the complete launch on any key, price, salt, delta or budget mismatch.",
+            "Prove that a failed launch leaves no partially initialized pool and no orphaned balance."
+          ],
+          "evidenceRefs": []
+        }
+      },
+      "signedDataSource": {
+        "used": false,
+        "signerAuthorityRefs": [],
+        "signatureScheme": null,
+        "payloadSchemaPath": null,
+        "freshnessRule": null,
+        "replayProtection": null,
+        "onchainVerifierSurfaceId": null
+      },
+      "onchainOracleVerifier": {
+        "used": false,
+        "verifiedSourceSurfaceIds": [],
+        "verificationRule": null,
+        "freshnessRule": null,
+        "replayProtection": null,
+        "failureRule": null
+      }
+    }
+  ],
+  "projectCapabilities": [
+    {
+      "id": "canonical-pool-fee-and-rent-auction",
+      "kind": "pool-interaction",
+      "summary": "Apply the auctioned LP fee per swap, charge and account the hook-owned volume fee on executed gross quote-side amounts in all four quadrants, run the permissionless rent auction, and donate accrued rent to the canonical pool's in-range positions.",
+      "surfaceIds": [
+        "poolrent-hook"
+      ],
+      "securityTriggers": {
+        "authority": true,
+        "valueFlow": true,
+        "sourceOfTruth": true,
+        "signaturesReplay": false,
+        "externalCalls": true,
+        "custody": true,
+        "piiGeolocation": false,
+        "secretBoundary": false,
+        "sourceTestSchema": true,
+        "failureRecovery": true
+      },
+      "requiredProfiles": [
+        "authority",
+        "custody",
+        "external-calls",
+        "failure-recovery",
+        "source-of-truth",
+        "source-test-schema",
+        "value-flow"
+      ]
+    },
+    {
+      "id": "canonical-launch",
+      "kind": "token-launch",
+      "summary": "Create the fixed-supply token, deploy the hook at a mined address, initialize the one canonical pool and seed its first full-range position atomically, then return every unspent unit to the launch wallet.",
+      "surfaceIds": [
+        "poolrent-launch"
+      ],
+      "securityTriggers": {
+        "authority": true,
+        "valueFlow": true,
+        "sourceOfTruth": true,
+        "signaturesReplay": false,
+        "externalCalls": true,
+        "custody": true,
+        "piiGeolocation": false,
+        "secretBoundary": false,
+        "sourceTestSchema": true,
+        "failureRecovery": true
+      },
+      "requiredProfiles": [
+        "authority",
+        "custody",
+        "external-calls",
+        "failure-recovery",
+        "source-of-truth",
+        "source-test-schema",
+        "value-flow"
+      ]
+    }
+  ],
+  "capabilities": {
+    "externalCalls": {
+      "used": true,
+      "targets": [
+        "The immutable Uniswap v4 PoolManager at 0x000000000004444c5dc75cB358380D2e3dE08A90, stored as a constructor immutable in both the hook and the launcher",
+        "The immutable WETH9 quote asset at 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, stored as a constructor immutable in both the hook and the launcher",
+        "The launched fixed-supply ERC-20 deployed by the launcher in the same transaction, touched only by the launcher during the launch"
+      ],
+      "callSites": [
+        "hook.bid and hook.depositRent pull the quote asset with SafeERC20 transferFrom",
+        "hook.claimFee transfers the caller's own accrued balance with SafeERC20 transfer",
+        "hook.withdrawDeposit transfers the caller's own deposit with SafeERC20 transfer",
+        "hook afterSwap calls PoolManager take, donate, sync and settle and transfers the donated amount with SafeERC20",
+        "hook afterInitialize calls PoolManager updateDynamicLPFee once",
+        "launcher deployAndLaunch and unlockCallback call PoolManager initialize, unlock, modifyLiquidity, sync and settle and transfer both currencies with SafeERC20"
+      ],
+      "reentrancyPolicy": "Both external targets are immutable and neither is a callback token. Every claim and withdrawal follows checks, effects and interactions so a reentrant recipient sees an already decremented balance, and the swap-side calls run inside a PoolManager unlock that rejects a nested unlock.",
+      "stateDriftPolicy": "Only a standard ERC-20 with no transfer fee, no rebase and no transfer callback is supported for the quote asset, and it is fixed at construction. Deposits and claims assume the received amount equals the requested amount and the stateful solvency invariant would fail immediately if that ever stopped holding.",
+      "returnValuePolicy": "Every token movement goes through SafeERC20, so a false return or a malformed return reverts the call. No low-level call result is ignored anywhere in the system.",
+      "failureAtomicity": "A reverted or malformed transfer reverts the exact call it belongs to and nothing else: one beneficiary's failing claim blocks no other claim, no deposit withdrawal and no swap, and a failed deposit pull leaves the auction state untouched."
+    },
+    "permissionedAsset": {
+      "used": false,
+      "officialUniswapPermissionedPool": null,
+      "issuer": null,
+      "jurisdiction": null,
+      "legalDocuments": [],
+      "underlyingClaim": null,
+      "custodian": null,
+      "adapter": null,
+      "hooks": null,
+      "positionManager": null,
+      "swapEligibility": null,
+      "liquidityEligibility": null,
+      "positionTransferability": null,
+      "pauseFreezeUnwind": null,
+      "redemption": null,
+      "routingLimitations": null
+    },
+    "oracle": {
+      "used": false,
+      "source": null,
+      "value": null,
+      "deployment": null,
+      "runtimeHash": null,
+      "decimals": null,
+      "heartbeatSeconds": null,
+      "maxAgeSeconds": null,
+      "observationType": null,
+      "windowSeconds": null,
+      "minimumAnswer": null,
+      "maximumAnswer": null,
+      "maximumDeviation": null,
+      "roundChecks": null,
+      "manipulationResistance": null,
+      "governance": null,
+      "fallback": null,
+      "maxFallbackAgeSeconds": null,
+      "failureRule": null
+    },
+    "keeper": {
+      "used": false,
+      "executionMode": null,
+      "minIntervalSeconds": null,
+      "maxDelaySeconds": null,
+      "permissionlessFallbackAfterSeconds": null,
+      "idempotencyKey": null,
+      "duplicateBehavior": null,
+      "lastProcessedState": null,
+      "boundedWork": null,
+      "maxItems": null,
+      "retryPolicy": null,
+      "zeroWorkBehavior": null,
+      "fundingSource": null,
+      "minimumGasRunway": null,
+      "alertThreshold": null,
+      "maximumGas": null,
+      "failureImpact": null,
+      "userExitIndependent": null,
+      "poolBinding": null,
+      "slippage": null,
+      "deadline": null,
+      "mevPolicy": null
+    },
+    "proof": {
+      "used": false,
+      "proofSystem": null,
+      "circuitRevision": null,
+      "verifyingKeyHash": null,
+      "verifierAddress": null,
+      "runtimeHash": null,
+      "setupType": null,
+      "setupProvenance": null,
+      "publicInputs": [],
+      "domainBindings": {
+        "chainId": null,
+        "verifyingContract": null,
+        "modelVersion": null,
+        "pool": null,
+        "action": null,
+        "actorOrRecipient": null,
+        "amountBounds": null,
+        "epochOrDeadline": null
+      },
+      "replayMode": null,
+      "nullifierScope": null,
+      "nullifierDerivation": null,
+      "nullifierStorage": null,
+      "atomicSpentCheck": null,
+      "resetPolicy": null,
+      "maximumProofBytes": null,
+      "maximumVerificationGas": null,
+      "verifierAuthority": null,
+      "failureRule": null,
+      "privacyClaim": null,
+      "metadataLeakage": null
+    },
+    "crossChain": {
+      "used": false,
+      "bridgeDependencyId": null,
+      "source": {
+        "network": {
+          "namespace": null,
+          "reference": null
+        },
+        "domain": null,
+        "authenticatedSender": {
+          "encoding": null,
+          "value": null,
+          "canonicalizationRule": null
+        }
+      },
+      "destination": {
+        "chainId": null,
+        "domain": null,
+        "receiver": null,
+        "receiverDependencyId": null,
+        "authenticatedBridgeCaller": null
+      },
+      "message": {
+        "identifierDerivation": null,
+        "nonceDerivation": null,
+        "nonceScope": null,
+        "customNonceRule": null,
+        "payloadHashRule": null,
+        "idempotencyKeyRule": null,
+        "idempotencyStorage": null,
+        "atomicConsumption": null,
+        "duplicateBehavior": null,
+        "domainBindings": {
+          "bridgeDependencyId": null,
+          "sourceNetwork": null,
+          "sourceDomain": null,
+          "sourceSender": null,
+          "destinationChainId": null,
+          "destinationDomain": null,
+          "receiver": null,
+          "receiverDependencyId": null,
+          "modelId": null,
+          "poolId": null,
+          "action": null,
+          "payloadHash": null,
+          "timestampOrExpiry": null,
+          "messageId": null,
+          "nonce": null
+        }
+      },
+      "finality": {
+        "mode": null,
+        "minimumSourceConfirmations": null,
+        "challengePeriodSeconds": null,
+        "attestationRule": null,
+        "reorgBehavior": null,
+        "customFinalityRule": null
+      },
+      "ordering": {
+        "mode": null,
+        "sequenceKey": null,
+        "outOfOrderBehavior": null,
+        "maximumPendingMessages": null,
+        "queueOverflowBehavior": null,
+        "pendingMessageExpirySeconds": null,
+        "cleanupRule": null,
+        "releaseRule": null
+      },
+      "staleness": {
+        "timestampSource": null,
+        "customTimestampRule": null,
+        "maximumMessageAgeSeconds": null,
+        "maximumFutureSkewSeconds": null,
+        "staleMessageBehavior": null
+      },
+      "failureBehavior": null,
+      "failureRule": null,
+      "fallback": {
+        "mode": null,
+        "authority": null,
+        "rule": null
+      },
+      "quarantine": {
+        "used": null,
+        "storageRule": null,
+        "maximumEntries": null,
+        "entryExpirySeconds": null,
+        "overflowBehavior": null,
+        "cleanupRule": null,
+        "releaseMode": null,
+        "releaseRule": null,
+        "releaseAuthority": null,
+        "atomicRelease": null
+      }
+    },
+    "externalLiquidity": {
+      "used": false,
+      "custody": null,
+      "ownership": null,
+      "shareAccounting": null,
+      "solvencyEquation": null,
+      "lossAllocation": null,
+      "donationPolicy": null,
+      "exitPath": null,
+      "dependencyFailure": null
+    },
+    "asyncSwap": {
+      "used": false,
+      "supportedExactness": null,
+      "custody": null,
+      "fillRule": null,
+      "partialFillRule": null,
+      "cancellation": null,
+      "expiry": null,
+      "refund": null,
+      "queueBound": null,
+      "liveness": null,
+      "failureRule": null
+    },
+    "customCurve": {
+      "used": false,
+      "invariant": null,
+      "domain": null,
+      "rounding": null,
+      "monotonicity": null,
+      "discontinuities": null,
+      "inverse": null,
+      "differentialReference": null,
+      "failureRule": null
+    }
+  },
+  "capabilityExtensions": [],
+  "tokenBehaviorExtensions": [],
+  "security": {
+    "usesTxOrigin": false,
+    "userControlledDelegatecall": false,
+    "arbitraryExecution": false,
+    "unboundedCriticalLoop": false,
+    "ignoredCallResults": false,
+    "hiddenControls": false,
+    "assumesOnchainSecrecy": false,
+    "bypassesHookAddressValidation": false,
+    "signatureScheme": {
+      "used": false,
+      "standard": null,
+      "nonce": null,
+      "deadline": null,
+      "chain": null,
+      "verifyingContract": null,
+      "action": null,
+      "parameters": null,
+      "erc1271": null
+    }
+  },
+  "implementation": {
+    "sourcePaths": [
+      "src/PoolRentHook.sol",
+      "src/PoolRentLauncher.sol",
+      "src/PoolRentToken.sol",
+      "src/libraries/PoolRentMath.sol",
+      "script/Launch.s.sol"
+    ],
+    "testPaths": [
+      "test/Auction.t.sol",
+      "test/Fee.t.sol",
+      "test/Fork.t.sol",
+      "test/Fuzz.t.sol",
+      "test/Invariants.t.sol",
+      "test/Launch.t.sol",
+      "test/Smoke.t.sol",
+      "test/handlers/PoolRentHandler.sol",
+      "test/utils/PoolRentFixture.sol",
+      "test/utils/TestQuoteToken.sol"
+    ],
+    "compilerBuildInfoPaths": [
+      "submissions/poolrent/evidence/build-info.json"
+    ],
+    "specificationPath": "spec/poolrent.json",
+    "testEvidencePath": "submissions/poolrent/evidence/test-evidence.json",
+    "dependencyLockPath": "submissions/poolrent/evidence/dependency-lock.json",
+    "gateStatusPath": "submissions/poolrent/evidence/gate-status.json",
+    "reviewTargetPath": "submissions/poolrent/evidence/review-target.json",
+    "runtimeAssetManifestPath": null
+  },
+  "risk": {
+    "dimensions": {
+      "complexity": 4,
+      "customMath": 1,
+      "externalDependencies": 1,
+      "externalLiquidity": 0,
+      "valueAtRisk": 3,
+      "teamMaturity": 2,
+      "upgradeability": 0,
+      "autonomy": 1,
+      "priceImpact": 2
+    },
+    "rationales": {
+      "complexity": "One hook coordinates four things at once: pool admission, a quadrant-dependent charge that uses both the before and the after swap return delta, a rent auction with lazy accrual and eviction, and a donation settled inside the same callback. Three contracts and one arithmetic library are in scope.",
+      "customMath": "The arithmetic is bounded rate math rather than new pricing: a floor on gross legs, a ceiling gross-up on net legs, a split that rounds the platform half up and gives the remainder to the manager, and a per-block rent charge capped at the remaining deposit. There is no new pool invariant.",
+      "externalDependencies": "Exactly two deployed contracts are called at runtime, both immutable and both fixed as constructor immutables: the Uniswap v4 PoolManager and the WETH9 quote asset. No feed, service, bridge or scheduler is consumed.",
+      "externalLiquidity": "The hook owns no position, no share and no third-party inventory, and it never counts canonical pool reserves as backing for anything it owes. Its only asset balance is the quote asset it carries for its own three declared namespaces.",
+      "valueAtRisk": "The hook carries three kinds of value for other people at once: auction deposits owned by their depositors, rent owed to the pool's in-range positions, and claimable volume-fee balances including the mandatory platform balance. A defect in the accounting could strand or misattribute any of them.",
+      "teamMaturity": "The process score stays conservative and nonzero: this is a first prototype revision from a small team, with no independent security review, no specialist accounting review and no bug bounty completed yet.",
+      "upgradeability": "Nothing can be replaced. The hook, the token and the launcher have no proxy, no implementation slot, no delegatecall, no owner and no replacement path, and every economic parameter is a compile-time constant or a constructor immutable.",
+      "autonomy": "Two state transitions happen without anyone asking for them: rent accrues per block and an exhausted deposit evicts its manager. Both are lazy, constant time and triggered by whatever call arrives next, so no keeper exists, but the pool's fee can change hands with no transaction aimed at that outcome.",
+      "priceImpact": "The hook changes execution twice over: it returns the LP fee that core applies to the swap, and it carves a bounded charge out of the executed gross quote-side amount through both the before and the after swap return delta. It never replaces core price formation and never consumes the whole executed amount."
+    },
+    "declaredTotal": 14,
+    "declaredTier": "high",
+    "featureTriggers": [
+      "autonomous",
+      "custom-accounting",
+      "custom-math",
+      "external-calls",
+      "price-impact",
+      "project-custody",
+      "project-external-calls",
+      "project-value-flow",
+      "return-delta"
+    ]
+  },
+  "disclosures": [
+    "This is a prototype submission. It is not deployed, not independently reviewed, not accepted and not available through Programmable, and nothing here claims otherwise.",
+    "The pool LP fee belongs to the pool's own providers in full and never satisfies the mandatory Programmable volume fee; the two are separate mechanisms enforced in the same hook.",
+    "beforeSwapReturnDelta is enabled because the policy's quadrant-dependent quote-side basis requires it on the two quadrants where the quote asset is the specified currency. It carries the highest review path by design.",
+    "Rent reaches only in-range positions. donate pays active positions proportionally, exactly as the pool pays fees, so a provider whose position is out of range earns no rent while it is inactive. This is deliberate, disclosed and tested; the alternative, an internal pull ledger, would mean the hook tracking or holding positions, which is a materially larger trust surface.",
+    "The 50/50 split of the 20 bps total between the platform and the manager is a parameter, not a structural requirement. The implementation derives the split from PLATFORM_SHARE_PPM and the declared total, so a different maintainer-preferred total or split is a constant change plus a re-mined salt rather than a redesign.",
+    "The 100-block minimum tenure protects a new manager from being outbid immediately before a large arbitrage, at the cost of letting an incumbent hold a mispriced fee for roughly twenty minutes. Both directions are defensible and the value is immutable once launched.",
+    "There is no transition period on eviction. The original auction-managed-market literature stages a handover window; this design installs and evicts immediately once the outbid and tenure conditions are met, which is simpler to reason about and to prove but gives a challenger the whole next block.",
+    "With zero in-range positions the rent accumulates in pendingRent and is donated on the next swap that has positions to receive it. It is never lost and it never blocks a swap.",
+    "Per-swap directional rounding leaves bounded dust in the hook. It is covered by the solvency inequality and disclosed rather than swept or redistributed.",
+    "The auction is only economically meaningful once the pool carries real arbitrage flow. On a cold pool there is simply no manager and the pool behaves as an ordinary dynamic-fee pool at the stored 30 bps default.",
+    "selfCallPolicy is declared as same-pool-swap-fee-enforced-internally because the hook makes direct PoolManager calls. The stricter reading is deliberate: the hook never calls PoolManager.swap on any path, allowedActions excludes swap, and a test proves no path from the hook reaches a same-pool swap, so no charge can ever be skipped by v4's callback suppression.",
+    "Routing, quoting, indexing, scanning, aggregation and listing support is not claimed. A hook that returns deltas and a dynamic fee is not automatically supported by every provider; local compatibility is not provider approval and no fallback is asserted for a provider that does not support this runtime.",
+    "The canonical pool pairs the launched token against WETH, so a published Uniswap hook-routing review trigger applies even though no routing target is planned for this submission.",
+    "Taking the auction seat costs one block of rent immediately and the manager share of the volume charge is carried to the pool's positions for the whole entry block, so a searcher cannot take a vacant seat, collect the manager share of a swap it front-ran and withdraw its deposit in one block.",
+    "One block of entry rent is a blunt instrument. It makes taking the seat cost something, but the sharper guard is that a manager accrues no share of the charge in its entry block. A maintainer may prefer a longer prepaid period instead; both are constants, not structure."
+  ],
+  "unresolved": []
+}

@@ -1,0 +1,68 @@
+INFO:Detectors:
+Detector: incorrect-equality
+PoolRentHook._accrueFee(uint256) (src/PoolRentHook.sol#354-371) uses a dangerous strict equality:
+	- currentManager == address(0) || block.number == tenureStartBlock (src/PoolRentHook.sol#364)
+PoolRentHook._accrueRent() (src/PoolRentHook.sol#496-519) uses a dangerous strict equality:
+	- block.number == last (src/PoolRentHook.sol#498)
+PoolRentHook._accrueRent() (src/PoolRentHook.sol#496-519) uses a dangerous strict equality:
+	- owed == 0 (src/PoolRentHook.sol#515)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#dangerous-strict-equalities
+INFO:Detectors:
+Detector: reentrancy-no-eth
+Reentrancy in PoolRentHook._afterSwap(address,PoolKey,SwapParams,BalanceDelta,bytes) (src/PoolRentHook.sol#295-341):
+	External calls:
+	- poolManager.take(_quoteCurrency(),address(this),totalFee) (src/PoolRentHook.sol#335)
+	- _donateRent(key) (src/PoolRentHook.sol#338)
+		- poolManager.sync(_quoteCurrency()) (src/PoolRentHook.sol#543)
+		- poolManager.settle() != amount (src/PoolRentHook.sol#545)
+		- donated = poolManager.donate(key,0,amount,) (src/PoolRentHook.sol#539)
+		- donated = poolManager.donate(key,amount,0,) (src/PoolRentHook.sol#539)
+	State variables written after the call(s):
+	- _donateRent(key) (src/PoolRentHook.sol#338)
+		- pendingRent = 0 (src/PoolRentHook.sol#537)
+	PoolRentHook.pendingRent (src/PoolRentHook.sol#114) can be used in cross function reentrancies:
+	- PoolRentHook._accrueFee(uint256) (src/PoolRentHook.sol#354-371)
+	- PoolRentHook._accrueRent() (src/PoolRentHook.sol#496-519)
+	- PoolRentHook._donateRent(PoolKey) (src/PoolRentHook.sol#532-548)
+	- PoolRentHook.bid(uint128,uint256) (src/PoolRentHook.sol#394-443)
+	- PoolRentHook.pendingRent (src/PoolRentHook.sol#114)
+	- PoolRentHook.totalLiabilities() (src/PoolRentHook.sol#560-562)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#reentrancy-vulnerabilities-2
+INFO:Detectors:
+Detector: unused-return
+PoolRentLauncher.deployAndLaunch(PoolRentLauncher.LaunchParams) (src/PoolRentLauncher.sol#71-115) ignores return value by poolManager.initialize(key,params.sqrtPriceX96) (src/PoolRentLauncher.sol#100)
+PoolRentLauncher.deployAndLaunch(PoolRentLauncher.LaunchParams) (src/PoolRentLauncher.sol#71-115) ignores return value by poolManager.unlock(abi.encode(key,params)) (src/PoolRentLauncher.sol#105)
+PoolRentLauncher.unlockCallback(bytes) (src/PoolRentLauncher.sol#117-147) ignores return value by (delta,None) = poolManager.modifyLiquidity(key,ModifyLiquidityParams({tickLower:lower,tickUpper:upper,liquidityDelta:int256(uint256(params.liquidity)),salt:bytes32(0)}),) (src/PoolRentLauncher.sol#125-131)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#unused-return
+INFO:Detectors:
+Detector: reentrancy-events
+Reentrancy in PoolRentHook._afterSwap(address,PoolKey,SwapParams,BalanceDelta,bytes) (src/PoolRentHook.sol#295-341):
+	External calls:
+	- poolManager.take(_quoteCurrency(),address(this),totalFee) (src/PoolRentHook.sol#335)
+	- _donateRent(key) (src/PoolRentHook.sol#338)
+		- poolManager.sync(_quoteCurrency()) (src/PoolRentHook.sol#543)
+		- poolManager.settle() != amount (src/PoolRentHook.sol#545)
+		- donated = poolManager.donate(key,0,amount,) (src/PoolRentHook.sol#539)
+		- donated = poolManager.donate(key,amount,0,) (src/PoolRentHook.sol#539)
+	Event emitted after the call(s):
+	- RentDonated(amount) (src/PoolRentHook.sol#547)
+		- _donateRent(key) (src/PoolRentHook.sol#338)
+Reentrancy in PoolRentHook._donateRent(PoolKey) (src/PoolRentHook.sol#532-548):
+	External calls:
+	- poolManager.sync(_quoteCurrency()) (src/PoolRentHook.sol#543)
+	- donated = poolManager.donate(key,0,amount,) (src/PoolRentHook.sol#539)
+	- donated = poolManager.donate(key,amount,0,) (src/PoolRentHook.sol#539)
+	Event emitted after the call(s):
+	- RentDonated(amount) (src/PoolRentHook.sol#547)
+Reentrancy in PoolRentLauncher.deployAndLaunch(PoolRentLauncher.LaunchParams) (src/PoolRentLauncher.sol#71-115):
+	External calls:
+	- poolManager.initialize(key,params.sqrtPriceX96) (src/PoolRentLauncher.sol#100)
+	- poolManager.unlock(abi.encode(key,params)) (src/PoolRentLauncher.sol#105)
+	Event emitted after the call(s):
+	- Launched(address(newToken),address(newHook),PoolId.unwrap(key.toId()),params.liquidity) (src/PoolRentLauncher.sol#113)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#reentrancy-vulnerabilities-4
+INFO:Detectors:
+Detector: cyclomatic-complexity
+PoolRentHook.bid(uint128,uint256) (src/PoolRentHook.sol#394-443) has a high cyclomatic complexity (12).
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#cyclomatic-complexity
+INFO:Slither:. analyzed (39 contracts with 102 detectors), 11 result(s) found

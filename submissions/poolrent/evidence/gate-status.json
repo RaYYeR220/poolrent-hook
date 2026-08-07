@@ -1,0 +1,487 @@
+{
+  "schemaVersion": 1,
+  "attestation": "builder-declared-untrusted",
+  "standardVersion": "1.3.0",
+  "submissionHash": "sha256:77f49dcbeb5d6009a003c0d1dbe0bec3c5c431e60fd9c3bc4d606e85daf4778d",
+  "validatorSha256": "sha256:d3b4db147fbb955d0ecdff0d5d3a55d25a55a38bb72b33efe535d9c80c286318",
+  "schemaSha256": "sha256:b3a67753b286a35a49d88a85e1bdaec50f19d86b241145901e2dd24327fd515a",
+  "deploymentSnapshotSha256": "sha256:35e36a2837a70688104cd6a4aae3da4e1401429226c8ca15d036db4cf2195d2c",
+  "officialDeploymentReferenceSha256": "sha256:ef7e12bf1312edf374749bfeb18ac41cb83623856fbfd39892606579b7119fd6",
+  "policyBundleSha256": "sha256:1c623966ae90b671ff423329c14f1dbfb0061a80f6cd33b25e6671ed98c61c3d",
+  "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479",
+  "gates": [
+    {
+      "id": "after-swap-return-delta-invariants",
+      "status": "completed",
+      "evidence": [
+        {
+          "gateId": "after-swap-return-delta-invariants",
+          "result": "passed",
+          "scope": "Executed-basis charging, backing of the returned afterSwap delta and the solvency invariant after mixed sequences.",
+          "path": "submissions/poolrent/evidence/test-evidence.json",
+          "sha256": "sha256:2b50bdaa13d1ae1e750264f1b85e671736c21cd48826d6a1c33a3c370ce8a4a9",
+          "command": "forge test --match-contract FeeTest && forge test --match-contract InvariantsTest",
+          "toolVersion": "forge 1.7.1",
+          "commit": "04698a43c0180c2f3cf5c2cf277d0b759b9e4f7f",
+          "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+        }
+      ],
+      "note": "The two afterSwap-charged quadrants are asserted on the executed delta, a price-limited swap charges only what ran, and the returned unspecified delta is backed by a take of the same amount in the same callback."
+    },
+    {
+      "id": "autonomous-state-transition-invariants",
+      "status": "completed",
+      "evidence": [
+        {
+          "gateId": "autonomous-state-transition-invariants",
+          "result": "passed",
+          "scope": "The two autonomous transitions in this design, lazy rent accrual and deterministic eviction, at their boundaries and inside a swap.",
+          "path": "submissions/poolrent/evidence/test-evidence.json",
+          "sha256": "sha256:2b50bdaa13d1ae1e750264f1b85e671736c21cd48826d6a1c33a3c370ce8a4a9",
+          "command": "forge test --match-contract AuctionTest && forge test --match-contract InvariantsTest",
+          "toolVersion": "forge 1.7.1",
+          "commit": "04698a43c0180c2f3cf5c2cf277d0b759b9e4f7f",
+          "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+        }
+      ],
+      "note": "Rent accrual is asserted to be exactly rent times elapsed blocks, idempotent within one block, and to charge nothing with no manager; eviction is asserted to land on the exhausting block, to cap the charge at the remaining deposit, to reset the seat and never to revert a swap."
+    },
+    {
+      "id": "before-swap-delta-four-quadrant-proof",
+      "status": "completed",
+      "evidence": [
+        {
+          "gateId": "before-swap-delta-four-quadrant-proof",
+          "result": "passed",
+          "scope": "Residual AMM amount, charge bounds, full-consumption rejection and partial-fill rejection on the two beforeSwap quadrants, with fuzz coverage of the magnitude range.",
+          "path": "submissions/poolrent/evidence/test-evidence.json",
+          "sha256": "sha256:2b50bdaa13d1ae1e750264f1b85e671736c21cd48826d6a1c33a3c370ce8a4a9",
+          "command": "forge test --match-contract FeeTest && forge test --match-contract FuzzTest",
+          "toolVersion": "forge 1.7.1",
+          "commit": "04698a43c0180c2f3cf5c2cf277d0b759b9e4f7f",
+          "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+        }
+      ],
+      "note": "The two beforeSwap-charged quadrants are asserted on the specified amount, the charge is bounded at one wei below the executed amount so a zero AMM leg cannot occur, and a partial fill on either quadrant reverts rather than charging unexecuted volume."
+    },
+    {
+      "id": "callback-authentication-and-permission-mask",
+      "status": "completed",
+      "evidence": [
+        {
+          "gateId": "callback-authentication-and-permission-mask",
+          "result": "passed",
+          "scope": "Permission-mask assertion on the deployed address, CREATE2 address prediction, PoolManager authentication and canonical pool admission. It does not cover a deployment on any live chain.",
+          "path": "submissions/poolrent/evidence/test-evidence.json",
+          "sha256": "sha256:2b50bdaa13d1ae1e750264f1b85e671736c21cd48826d6a1c33a3c370ce8a4a9",
+          "command": "forge test --match-contract LaunchTest",
+          "toolVersion": "forge 1.7.1",
+          "commit": "04698a43c0180c2f3cf5c2cf277d0b759b9e4f7f",
+          "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+        }
+      ],
+      "note": "The permission mask 0x30CC is asserted directly on the deployed hook address after a real launch, the hook constructor validates its own bits, and pool admission rejects a foreign currency, a foreign tick spacing, a static-fee key and a second initialization."
+    },
+    {
+      "id": "callback-selector-return-length-and-self-call-tests",
+      "status": "completed",
+      "evidence": [
+        {
+          "gateId": "callback-selector-return-length-and-self-call-tests",
+          "result": "passed",
+          "scope": "Four-quadrant swap execution through core, which rejects a wrong selector or return-data length, plus a raw-router bypass attempt that is charged identically. It does not include a dedicated malformed-selector negative test.",
+          "path": "submissions/poolrent/evidence/test-evidence.json",
+          "sha256": "sha256:2b50bdaa13d1ae1e750264f1b85e671736c21cd48826d6a1c33a3c370ce8a4a9",
+          "command": "forge test --match-contract FeeTest",
+          "toolVersion": "forge 1.7.1",
+          "commit": "04698a43c0180c2f3cf5c2cf277d0b759b9e4f7f",
+          "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+        }
+      ],
+      "note": "Selector and return-data length are enforced by Uniswap v4 core on every callback, so the passing four-quadrant swap suite is the proof; there is no dedicated negative selector test. The self-call property is covered by a foreign-router test that is charged identically and by the structural absence of any PoolManager.swap call site in the hook."
+    },
+    {
+      "id": "delta-conservation-invariants",
+      "status": "completed",
+      "evidence": [
+        {
+          "gateId": "delta-conservation-invariants",
+          "result": "passed",
+          "scope": "Nine stateful invariants at 256 runs and depth 64 with the recorded call and revert counts. It does not cover sequences the handler cannot generate.",
+          "path": "submissions/poolrent/evidence/test-evidence.json",
+          "sha256": "sha256:2b50bdaa13d1ae1e750264f1b85e671736c21cd48826d6a1c33a3c370ce8a4a9",
+          "command": "forge test --match-contract InvariantsTest",
+          "toolVersion": "forge 1.7.1",
+          "commit": "04698a43c0180c2f3cf5c2cf277d0b759b9e4f7f",
+          "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+        }
+      ],
+      "note": "Stateful invariants assert conservation, solvency, the liability sum against its total, and that no value becomes stuck, after every generated sequence of swaps, bids, withdrawals, fee changes, claims and block rolls."
+    },
+    {
+      "id": "dependency-failure-tests",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not executed. The fork suites assert that the PoolManager and WETH9 carry runtime code and then use them normally; no test forces a dependency to fail, revert, pause or return malformed data. A failing-dependency suite is still to be written."
+    },
+    {
+      "id": "dynamic-fee-manipulation-tests",
+      "status": "completed",
+      "evidence": [
+        {
+          "gateId": "dynamic-fee-manipulation-tests",
+          "result": "passed",
+          "scope": "Authorization and clamping of the only input to the LP fee, plus the seat-rotation rules that bound who can move it. There is no pool-state observation to manipulate, so no same-block observation attack is modelled.",
+          "path": "submissions/poolrent/evidence/test-evidence.json",
+          "sha256": "sha256:2b50bdaa13d1ae1e750264f1b85e671736c21cd48826d6a1c33a3c370ce8a4a9",
+          "command": "forge test --match-contract AuctionTest && forge test --match-contract FuzzTest",
+          "toolVersion": "forge 1.7.1",
+          "commit": "04698a43c0180c2f3cf5c2cf277d0b759b9e4f7f",
+          "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+        }
+      ],
+      "note": "The fee input is a stored parameter of a paid role rather than a pool observation, so the manipulation surface is the role itself: only the current manager may set it, an evicted manager cannot, the value is clamped, a handover resets it to the default, and the seat can only move through the auction."
+    },
+    {
+      "id": "dynamic-fee-properties",
+      "status": "completed",
+      "evidence": [
+        {
+          "gateId": "dynamic-fee-properties",
+          "result": "passed",
+          "scope": "Bounds on write and on read, override-flag behaviour, the vacant-seat fallback and the LP-fee range invariant.",
+          "path": "submissions/poolrent/evidence/test-evidence.json",
+          "sha256": "sha256:2b50bdaa13d1ae1e750264f1b85e671736c21cd48826d6a1c33a3c370ce8a4a9",
+          "command": "forge test --match-contract AuctionTest && forge test --match-contract InvariantsTest",
+          "toolVersion": "forge 1.7.1",
+          "commit": "04698a43c0180c2f3cf5c2cf277d0b759b9e4f7f",
+          "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+        }
+      ],
+      "note": "Both bounds are accepted, one hundredth of a bip outside either bound reverts, the stored pool fee is never mutated by the override, the default applies with no manager, and an invariant asserts the applied fee stays inside the immutable range."
+    },
+    {
+      "id": "event-reorg-backfill-freshness-tests",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not executed and not applicable to any shipped code: this submission contains no indexer, so there is nothing to test for reorg rollback, backfill or freshness. The declared data contract is a specification for a platform-owned indexer, not an implementation in this repository."
+    },
+    {
+      "id": "external-call-reentrancy-and-failure-tests",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not executed. The local suite uses a plain ERC-20 stand-in for the quote asset. No reverting, false-returning, malformed-return, fee-on-transfer or reentrant token mock exists yet, so the external-call failure and reentrancy paths are argued structurally in THREAT_MODEL.md rather than tested."
+    },
+    {
+      "id": "fee-four-quadrant-tests",
+      "status": "completed",
+      "evidence": [
+        {
+          "gateId": "fee-four-quadrant-tests",
+          "result": "passed",
+          "scope": "All four direction and exactness modes on the canonical PoolKey with the charged currency, the basis and the collection callback asserted per quadrant.",
+          "path": "submissions/poolrent/evidence/test-evidence.json",
+          "sha256": "sha256:2b50bdaa13d1ae1e750264f1b85e671736c21cd48826d6a1c33a3c370ce8a4a9",
+          "command": "forge test --match-contract FeeTest",
+          "toolVersion": "forge 1.7.1",
+          "commit": "04698a43c0180c2f3cf5c2cf277d0b759b9e4f7f",
+          "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+        }
+      ],
+      "note": "One test per direction and exactness mode asserts the charge lands only in the quote balance, that the launched-token balance of the hook stays zero, and which callback the charge appears in."
+    },
+    {
+      "id": "format-build-size-warnings",
+      "status": "completed",
+      "evidence": [
+        {
+          "gateId": "format-build-size-warnings",
+          "result": "passed",
+          "scope": "Format, clean compile and contract sizes for the four declared sources under the pinned compiler profile. It does not cover any behaviour, review or deployment claim.",
+          "path": "submissions/poolrent/evidence/test-evidence.json",
+          "sha256": "sha256:2b50bdaa13d1ae1e750264f1b85e671736c21cd48826d6a1c33a3c370ce8a4a9",
+          "command": "forge fmt --check && forge build && forge build --sizes",
+          "toolVersion": "forge 1.7.1",
+          "commit": "04698a43c0180c2f3cf5c2cf277d0b759b9e4f7f",
+          "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+        }
+      ],
+      "note": "forge fmt --check reported no diff, forge build compiled cleanly under the pinned settings, and forge build --sizes recorded runtime and initcode for every contract with its EIP-170 headroom."
+    },
+    {
+      "id": "human-economic-and-security-review",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not started. This candidate gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "independent-project-custody-and-solvency-review",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not started. This candidate gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "independent-project-value-flow-review",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not started. This candidate gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "independent-routing-provider-approval",
+      "status": "blocked",
+      "evidence": [],
+      "note": "No routing, listing or discovery provider has been approached. Only the provider can decide, so this gate is blocked on an external party."
+    },
+    {
+      "id": "independent-security-review-one",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not started. This candidate gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "independent-security-review-two",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not started. This release gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "independent-specialist-review",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not started. This candidate gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "monitoring-and-lifecycle-evidence",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not started. This release gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "nested-action-reentrancy-tests",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not executed. The skip branch of the donation path is covered, but no test drives a reentrancy attempt through the hook's nested donate, take and settle calls, and no maximum-depth case is exercised."
+    },
+    {
+      "id": "pinned-fork-and-current-head-smoke",
+      "status": "planned",
+      "evidence": [],
+      "note": "Both fork suites were executed locally at the declared commit and are recorded in test-evidence.json, but this gate is maintainer-owned and a builder cannot complete it."
+    },
+    {
+      "id": "production-anomaly-monitoring",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not started. This release gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "programmable-fee-formula-and-claim-tests",
+      "status": "completed",
+      "evidence": [
+        {
+          "gateId": "programmable-fee-formula-and-claim-tests",
+          "result": "passed",
+          "scope": "The rate formula, the non-additive split, the deployed constants, owner-only claim authority and per-claim destinations. It does not prove that any fee is collected on a live chain.",
+          "path": "submissions/poolrent/evidence/test-evidence.json",
+          "sha256": "sha256:2b50bdaa13d1ae1e750264f1b85e671736c21cd48826d6a1c33a3c370ce8a4a9",
+          "command": "forge test --match-contract FeeTest",
+          "toolVersion": "forge 1.7.1",
+          "commit": "04698a43c0180c2f3cf5c2cf277d0b759b9e4f7f",
+          "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+        }
+      ],
+      "note": "Zero, below, at and above the 10 bps minimum are asserted, the non-additive 3 percent example is asserted including an explicit assertion that the result is not 310000, and owner-only claims are proven against the immutable constant including owner-selected destinations per claim."
+    },
+    {
+      "id": "programmable-indexer-integration-review",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not started. This candidate gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "programmable-integration-test-review",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not started. This candidate gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "programmable-registry-integration-review",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not started. This candidate gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "project-custody-solvency-and-exit-tests",
+      "status": "completed",
+      "evidence": [
+        {
+          "gateId": "project-custody-solvency-and-exit-tests",
+          "result": "passed",
+          "scope": "Custody solvency across the three liability namespaces and the unconditional exit path for every one of them.",
+          "path": "submissions/poolrent/evidence/test-evidence.json",
+          "sha256": "sha256:2b50bdaa13d1ae1e750264f1b85e671736c21cd48826d6a1c33a3c370ce8a4a9",
+          "command": "forge test --match-contract InvariantsTest && forge test --match-contract AuctionTest",
+          "toolVersion": "forge 1.7.1",
+          "commit": "04698a43c0180c2f3cf5c2cf277d0b759b9e4f7f",
+          "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+        }
+      ],
+      "note": "Solvency, exit liveness and no-stuck-value are stateful invariants; deposit withdrawal to a chosen destination, an evicted manager keeping its remainder and a manager self-evicting below its floor are all asserted directly."
+    },
+    {
+      "id": "project-custody-solvency-and-withdrawal-monitoring",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not started. This release gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "project-external-call-authentication-and-failure-tests",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not executed as a whole. The authentication half is covered by the PoolManager callback checks and the launcher's foreign-caller rejection, but the failure half needs the adversarial-token mocks that do not exist yet."
+    },
+    {
+      "id": "project-external-dependency-release-monitoring",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not started. This release gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "project-external-dependency-trust-review",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not started. This candidate gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "project-value-flow-conservation-and-claim-tests",
+      "status": "completed",
+      "evidence": [
+        {
+          "gateId": "project-value-flow-conservation-and-claim-tests",
+          "result": "passed",
+          "scope": "Value conservation, exact split arithmetic including dust and odd amounts, and self-scoped claim authorization.",
+          "path": "submissions/poolrent/evidence/test-evidence.json",
+          "sha256": "sha256:2b50bdaa13d1ae1e750264f1b85e671736c21cd48826d6a1c33a3c370ce8a4a9",
+          "command": "forge test --match-contract InvariantsTest && forge test --match-contract FeeTest",
+          "toolVersion": "forge 1.7.1",
+          "commit": "04698a43c0180c2f3cf5c2cf277d0b759b9e4f7f",
+          "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+        }
+      ],
+      "note": "Conservation holds across every generated sequence, the split sums exactly to the charge for every input, and claims are proven self-scoped with the platform liability unreachable by anyone else."
+    },
+    {
+      "id": "project-value-flow-production-monitoring",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not started. This release gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "public-bug-bounty",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not started. This release gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "public-metadata-resource-binding-review",
+      "status": "planned",
+      "evidence": [],
+      "note": "No project or token logo resource exists yet, so no URI, byte hash, mutability or owner can be bound. Maintainer review of the public presentation resources is still required."
+    },
+    {
+      "id": "reserve-reconstruction-and-solvency-tests",
+      "status": "completed",
+      "evidence": [
+        {
+          "gateId": "reserve-reconstruction-and-solvency-tests",
+          "result": "passed",
+          "scope": "Onchain reserve attribution and the solvency inequality across the three namespaces, plus event-based reconstruction of the fee liability. No offchain indexer exists in this project, so nothing offchain was executed.",
+          "path": "submissions/poolrent/evidence/test-evidence.json",
+          "sha256": "sha256:2b50bdaa13d1ae1e750264f1b85e671736c21cd48826d6a1c33a3c370ce8a4a9",
+          "command": "forge test --match-contract InvariantsTest && forge test --match-contract FeeTest",
+          "toolVersion": "forge 1.7.1",
+          "commit": "04698a43c0180c2f3cf5c2cf277d0b759b9e4f7f",
+          "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+        }
+      ],
+      "note": "The solvency inequality is a stateful invariant, the liability total is asserted against the sum of its entries, a direct token transfer is asserted to create no attribution for anyone, and FeeAccrued is asserted to reconstruct the liability growth exactly."
+    },
+    {
+      "id": "return-delta-execution-event",
+      "status": "completed",
+      "evidence": [
+        {
+          "gateId": "return-delta-execution-event",
+          "result": "passed",
+          "scope": "Event-to-liability reconciliation for the custom leg, including the zero-charge case that must emit nothing.",
+          "path": "submissions/poolrent/evidence/test-evidence.json",
+          "sha256": "sha256:2b50bdaa13d1ae1e750264f1b85e671736c21cd48826d6a1c33a3c370ce8a4a9",
+          "command": "forge test --match-contract FeeTest",
+          "toolVersion": "forge 1.7.1",
+          "commit": "04698a43c0180c2f3cf5c2cf277d0b759b9e4f7f",
+          "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+        }
+      ],
+      "note": "FeeAccrued is asserted to sum exactly to the growth of the liability it describes, and a sub-threshold swap is asserted to emit no event at all."
+    },
+    {
+      "id": "runtime-source-config-verification",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not started. This release gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "specialist-accounting-review",
+      "status": "planned",
+      "evidence": [],
+      "note": "Not started. This candidate gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "static-analysis",
+      "status": "completed",
+      "evidence": [
+        {
+          "gateId": "static-analysis",
+          "result": "passed",
+          "scope": "Raw Slither output over 39 analysed contracts and 102 detectors at the declared commit. It is the input to the dispositions in TEST_PLAN.md, not an audit and not an approval.",
+          "path": "submissions/poolrent/evidence/slither-report.txt",
+          "sha256": "sha256:638ad4446df7ae8676548fcd0b6af4041feb62be5cd193306777989e57af3053",
+          "command": "slither . --config-file slither.config.json",
+          "toolVersion": "slither 0.11.6",
+          "commit": "04698a43c0180c2f3cf5c2cf277d0b759b9e4f7f",
+          "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+        },
+        {
+          "gateId": "static-analysis",
+          "result": "passed",
+          "scope": "Recorded Slither and forge lint counts by impact and by check. It does not cover semantic review of any finding beyond the written dispositions.",
+          "path": "submissions/poolrent/evidence/test-evidence.json",
+          "sha256": "sha256:2b50bdaa13d1ae1e750264f1b85e671736c21cd48826d6a1c33a3c370ce8a4a9",
+          "command": "forge lint --severity high --severity med",
+          "toolVersion": "forge 1.7.1",
+          "commit": "04698a43c0180c2f3cf5c2cf277d0b759b9e4f7f",
+          "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+        }
+      ],
+      "note": "Slither was executed over the whole project and every finding carries a written technical disposition in TEST_PLAN.md. Zero high-impact findings remained after the resolved items were fixed."
+    },
+    {
+      "id": "unit-integration-fuzz-invariant-tests",
+      "status": "completed",
+      "evidence": [
+        {
+          "gateId": "unit-integration-fuzz-invariant-tests",
+          "result": "passed",
+          "scope": "Full suite result with per-suite counts, fuzz runs, invariant runs, depth and calls at the declared commit. It does not cover any path the suite does not exercise.",
+          "path": "submissions/poolrent/evidence/test-evidence.json",
+          "sha256": "sha256:2b50bdaa13d1ae1e750264f1b85e671736c21cd48826d6a1c33a3c370ce8a4a9",
+          "command": "forge test",
+          "toolVersion": "forge 1.7.1",
+          "commit": "04698a43c0180c2f3cf5c2cf277d0b759b9e4f7f",
+          "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+        }
+      ],
+      "note": "153 tests across 8 suites passed with zero failures and zero skips, including 22 fuzz properties at 1000 runs each and 9 stateful invariants at 256 runs and depth 64."
+    }
+  ]
+}

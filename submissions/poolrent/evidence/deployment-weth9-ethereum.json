@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "attestation": "builder-declared-untrusted",
+  "deploymentRecordId": null,
+  "chainId": 1,
+  "address": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+  "runtimeHash": "0xd0a06b12ac47863b5c7be4185c2deaad1c61557033f56c7d4ea74429cbb25e23",
+  "observedBlock": 25700000,
+  "rpcClass": "public archive JSON-RPC over HTTPS (eth.drpc.org by default, overridable with MAINNET_RPC_URL)",
+  "sourceRepository": "https://etherscan.io/address/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2#code",
+  "sourceRevision": null,
+  "sourceStatus": "runtime-observed-source-not-reproduced",
+  "verificationProvider": "none: the runtime hash below was computed locally as keccak256 of the account code returned by the archive RPC during the pinned-block fork run; the explorer-verified source page is recorded as a source location only and was not fetched or compared here",
+  "compiler": "not determinable from the deployed runtime: the solc 0.4.x metadata trailer records only a bzzr0 source hash and carries no compiler version",
+  "observations": [
+    {
+      "block": 25648274,
+      "codeBytes": 3124,
+      "keccak256": "0xd0a06b12ac47863b5c7be4185c2deaad1c61557033f56c7d4ea74429cbb25e23"
+    },
+    {
+      "block": 25700000,
+      "codeBytes": 3124,
+      "keccak256": "0xd0a06b12ac47863b5c7be4185c2deaad1c61557033f56c7d4ea74429cbb25e23"
+    },
+    {
+      "block": 25701684,
+      "codeBytes": 3124,
+      "keccak256": "0xd0a06b12ac47863b5c7be4185c2deaad1c61557033f56c7d4ea74429cbb25e23"
+    },
+    {
+      "block": 25701767,
+      "codeBytes": 3124,
+      "keccak256": "0xd0a06b12ac47863b5c7be4185c2deaad1c61557033f56c7d4ea74429cbb25e23"
+    }
+  ],
+  "sourceMetadataIdentifier": "bzzr0:deb4c2ccab3c2fdca32ab3f46728389c2fe2c165d5fafa07661e4e004f6c344a",
+  "notes": [
+    "WETH9 is not present in any deployment reference committed to this standard, so no deploymentRecordId, deployment trust tier or feed binding can be cited.",
+    "No git revision is claimed because none is reproducible from this repository. The only exact source identifier available from the deployed runtime is the bzzr0 metadata hash recorded above.",
+    "sourceStatus is not matched: nobody has reproduced this runtime from source in this repository. Only the deployed runtime identity is recorded."
+  ]
+}

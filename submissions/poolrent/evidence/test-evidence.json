@@ -1,0 +1,241 @@
+{
+  "schemaVersion": 1,
+  "attestation": "builder-declared-untrusted",
+  "modelId": "poolrent",
+  "commit": "286a76f6d36ec7fb943dfe2adc87c08d7b71a057",
+  "toolVersions": {
+    "forge": "1.7.1",
+    "solc": "0.8.26",
+    "slither": "0.11.6",
+    "node": "v24.13.0",
+    "git": "2.52.0"
+  },
+  "profile": {
+    "evmVersion": "cancun",
+    "optimizer": true,
+    "optimizerRuns": 1000,
+    "viaIR": false,
+    "bytecodeHash": "none",
+    "cborMetadata": false,
+    "ffi": false,
+    "fuzzRuns": 1000,
+    "invariantRuns": 256,
+    "invariantDepth": 64
+  },
+  "checks": [
+    {
+      "id": "format",
+      "command": "forge fmt --check",
+      "status": "passed",
+      "result": "no diff"
+    },
+    {
+      "id": "build",
+      "command": "forge build",
+      "status": "passed",
+      "result": "Compiler run successful"
+    },
+    {
+      "id": "build-info",
+      "command": "forge build --build-info, then the official solc 0.8.26+commit.8a97fa7a binary over that exact standard-JSON input",
+      "status": "passed",
+      "result": "98 sources; solcLongVersion 0.8.26+commit.8a97fa7a. Foundry 1.7.1 records the release as `0.8.26` with no commit suffix, so the artifact was produced by running the official compiler binary over Foundry's own input. outputSelection is ast + abi + bytecode + metadata to stay inside the review size limit."
+    },
+    {
+      "id": "sizes",
+      "command": "forge build --sizes",
+      "status": "passed",
+      "result": {
+        "PoolRentHook": {
+          "runtime": 12586,
+          "initcode": 14077,
+          "runtimeMargin": 11990
+        },
+        "PoolRentLauncher": {
+          "runtime": 23150,
+          "initcode": 23535,
+          "runtimeMargin": 1426
+        },
+        "PoolRentToken": {
+          "runtime": 1875,
+          "initcode": 3062,
+          "runtimeMargin": 22701
+        },
+        "PoolRentMath": {
+          "runtime": 31,
+          "initcode": 81,
+          "runtimeMargin": 24545
+        }
+      }
+    },
+    {
+      "id": "lint",
+      "command": "forge lint --severity high --severity med",
+      "status": "passed-with-dispositions",
+      "result": {
+        "srcFindings": 12,
+        "detectors": {
+          "unsafe-typecast": 12
+        },
+        "high": 0,
+        "note": "every finding has a written disposition in TEST_PLAN.md"
+      }
+    },
+    {
+      "id": "tests",
+      "command": "forge test",
+      "status": "passed",
+      "result": {
+        "suites": 9,
+        "passed": 181,
+        "failed": 0,
+        "skipped": 0,
+        "bySuite": {
+          "LaunchTest": 9,
+          "SmokeTest": 8,
+          "FeeTest": 49,
+          "AuctionTest": 47,
+          "AdversarialTest": 28,
+          "FuzzTest": 22,
+          "InvariantsTest": 16,
+          "ForkPinnedTest": 1,
+          "ForkHeadTest": 1
+        }
+      }
+    },
+    {
+      "id": "fuzz",
+      "command": "forge test --match-contract FuzzTest",
+      "status": "passed",
+      "result": {
+        "functions": 22,
+        "runsPerFunction": 1000,
+        "failed": 0
+      }
+    },
+    {
+      "id": "invariants",
+      "command": "forge test --match-contract InvariantsTest",
+      "status": "passed",
+      "result": {
+        "invariants": 9,
+        "explicitRegressions": 7,
+        "runs": 256,
+        "depth": 64,
+        "callsPerInvariant": 16384,
+        "reverts": 0,
+        "discards": 0,
+        "unattributedWeiBound": 0,
+        "note": "the handler try/catches every action, so a rejected call still counts as an entry; useful-versus-rejected counts are asserted in afterInvariant"
+      }
+    },
+    {
+      "id": "fork-pinned",
+      "command": "forge test --match-contract ForkPinnedTest",
+      "status": "passed",
+      "result": {
+        "chainId": 1,
+        "block": 25700000,
+        "rpcClass": "public archive",
+        "rpc": "https://eth.drpc.org (overridable via MAINNET_RPC_URL)",
+        "expectedContracts": [
+          "0x000000000004444c5dc75cB358380D2e3dE08A90",
+          "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+        ],
+        "runtimeChecks": "both addresses asserted to carry runtime code before the launch",
+        "simulated": "launch, all four swap quadrants, auction win, LP-fee change, rent accrual, donation, owner claim",
+        "note": "a fork run proves compatibility with deployed code; it is not a deployment receipt"
+      }
+    },
+    {
+      "id": "fork-head",
+      "command": "forge test --match-contract ForkHeadTest",
+      "status": "passed",
+      "result": {
+        "chainId": 1,
+        "block": "current head at run time",
+        "note": "current-deployment compatibility smoke test"
+      }
+    },
+    {
+      "id": "static-analysis",
+      "command": "slither . --config-file slither.config.json",
+      "status": "passed-with-dispositions",
+      "result": {
+        "contractsAnalyzed": 41,
+        "detectors": 102,
+        "byImpact": {
+          "High": 0,
+          "Medium": 7,
+          "Low": 3,
+          "Informational": 1
+        },
+        "byCheck": {
+          "incorrect-equality": 3,
+          "reentrancy-no-eth": 1,
+          "unused-return": 3,
+          "reentrancy-events": 3,
+          "cyclomatic-complexity": 1
+        },
+        "artifact": "submissions/poolrent/evidence/slither-report.txt",
+        "note": "every finding has a written disposition in TEST_PLAN.md"
+      }
+    },
+    {
+      "id": "gas",
+      "command": "forge test --gas-report",
+      "status": "passed",
+      "result": {
+        "maximums": {
+          "bid": 163321,
+          "withdrawDeposit": 54352,
+          "poke": 45111,
+          "setLpFee": 32442,
+          "swapZeroForOneExactInputWholeTx": 322620,
+          "swapOneForZeroExactOutputWholeTx": 295118
+        },
+        "note": "swap figures are the whole test transaction through the v4 test router, not the hook callback alone"
+      }
+    },
+    {
+      "id": "adversarial",
+      "command": "forge test --match-contract AdversarialTest",
+      "status": "passed",
+      "result": {
+        "tests": 28,
+        "covers": [
+          "dependency-failure-tests",
+          "external-call-reentrancy-and-failure-tests",
+          "nested-action-reentrancy-tests",
+          "project-external-call-authentication-and-failure-tests",
+          "event-reorg-backfill-freshness-tests"
+        ],
+        "note": "misbehaving and reentrant quote-token mocks, foreign-PoolManager callback rejection, nested-action settlement, per-entry-point authentication, and a full state reconstruction from emitted events alone"
+      }
+    }
+  ],
+  "browserAndApiCases": {
+    "status": "not-applicable",
+    "reason": "the project ships no app, API, service, keeper, oracle or indexer"
+  },
+  "failures": [],
+  "skipped": [],
+  "notExecuted": [
+    {
+      "id": "independent-security-review",
+      "reason": "no independent review has been obtained; none is claimed"
+    },
+    {
+      "id": "deployment",
+      "reason": "nothing is deployed on any chain; the fork runs are compatibility evidence only"
+    },
+    {
+      "id": "source-verification",
+      "reason": "requires a deployment that does not exist"
+    },
+    {
+      "id": "routing-and-provider-support",
+      "reason": "no provider has been approached"
+    }
+  ]
+}

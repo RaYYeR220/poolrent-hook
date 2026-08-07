@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "attestation": "builder-declared-untrusted",
+  "deploymentRecordId": "v4-poolmanager-ethereum",
+  "deploymentTrustTier": "pinned-official-feed-snapshot",
+  "authorityReferenceSha256": "sha256:35e36a2837a70688104cd6a4aae3da4e1401429226c8ca15d036db4cf2195d2c",
+  "feedSha256": "225d2c77b3b53a9c9c1a8663359577bd1f52ed0c139e10e7ee846687959282d2",
+  "feedSourceRepository": "https://github.com/Uniswap/contracts",
+  "feedSourceCommit": "37936185dee7decf681360ec799c124e0e034672",
+  "feedSourceRef": "v4-core@1.0.0",
+  "feedSourceCodeUrl": "https://github.com/Uniswap/v4-core/blob/main/src/PoolManager.sol",
+  "implementationRepository": "https://github.com/Uniswap/v4-core",
+  "sourceRefResolution": "unresolved",
+  "chainId": 1,
+  "address": "0x000000000004444c5dc75cB358380D2e3dE08A90",
+  "runtimeHash": "0x785f1014552b7ce7d5fb7d0c970ca60edee94fd00425d7ca21609acac7ce1293",
+  "observedBlock": 25700000,
+  "rpcClass": "public archive JSON-RPC over HTTPS (eth.drpc.org by default, overridable with MAINNET_RPC_URL)",
+  "sourceRepository": "https://github.com/Uniswap/v4-core.git",
+  "sourceRevision": null,
+  "sourceStatus": "runtime-observed-source-not-reproduced",
+  "verificationProvider": "none: the runtime hash below was computed locally as keccak256 of the account code returned by the archive RPC during the pinned-block fork run; no explorer or third-party verification service was consulted",
+  "compiler": "solc 0.8.26, read from the CBOR metadata trailer of the deployed runtime code (a1 64 736f6c63 43 00 08 1a)",
+  "observations": [
+    {
+      "block": 25700000,
+      "codeBytes": 24009,
+      "keccak256": "0x785f1014552b7ce7d5fb7d0c970ca60edee94fd00425d7ca21609acac7ce1293"
+    },
+    {
+      "block": 25701684,
+      "codeBytes": 24009,
+      "keccak256": "0x785f1014552b7ce7d5fb7d0c970ca60edee94fd00425d7ca21609acac7ce1293"
+    },
+    {
+      "block": 25701690,
+      "codeBytes": 24009,
+      "keccak256": "0x785f1014552b7ce7d5fb7d0c970ca60edee94fd00425d7ca21609acac7ce1293"
+    },
+    {
+      "block": 25701767,
+      "codeBytes": 24009,
+      "keccak256": "0x785f1014552b7ce7d5fb7d0c970ca60edee94fd00425d7ca21609acac7ce1293"
+    }
+  ],
+  "notes": [
+    "The pinned deployment snapshot marks this record's sourceRef as unresolved, so no exact source commit is claimed and sourceRevision stays null.",
+    "sourceStatus is not matched: nobody has reproduced this runtime from source in this repository. Only the deployed runtime identity is recorded.",
+    "A fork run proves compatibility with the deployed code. It is not a deployment receipt and it is not source verification."
+  ]
+}
