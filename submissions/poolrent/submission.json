@@ -333,28 +333,28 @@
         "zeroForOneExactInput": {
           "currency": "currency1",
           "basis": "gross-output",
-          "formula": "floor(executed gross currency1 output times 2000 divided by 1000000), bounded below the executed amount",
+          "formula": "floor((executed gross currency1 output times 1000 plus the platform carry) divided by 1000000) plus the same expression at the project rate against the project carry, each remainder persisted",
           "rounding": "down",
           "maximumHundredthsOfBip": 2000
         },
         "zeroForOneExactOutput": {
           "currency": "currency1",
           "basis": "gross-output",
-          "formula": "ceil(requested net currency1 output times 2000 divided by (1000000 minus 2000)), added on top so the charge is 2000 hundredths of a bip of the gross currency1 the pool executes",
+          "formula": "solve for the gross currency1 output that leaves the trader exactly the requested net after the charge measured on that gross, then accrue both entitlements from it against their carries",
           "rounding": "up",
           "maximumHundredthsOfBip": 2000
         },
         "oneForZeroExactInput": {
           "currency": "currency1",
           "basis": "gross-input",
-          "formula": "floor(specified gross currency1 input times 2000 divided by 1000000), carved out before the residual is swapped",
+          "formula": "floor((specified gross currency1 input times 1000 plus the platform carry) divided by 1000000) plus the same expression at the project rate against the project carry, carved out before the residual is swapped",
           "rounding": "down",
           "maximumHundredthsOfBip": 2000
         },
         "oneForZeroExactOutput": {
           "currency": "currency1",
           "basis": "gross-input",
-          "formula": "ceil(executed net currency1 input times 2000 divided by (1000000 minus 2000)), so the charge is 2000 hundredths of a bip of the gross currency1 the trader pays",
+          "formula": "solve for the gross currency1 input that leaves the trader paying exactly the executed net plus the charge measured on that gross, then accrue both entitlements from it against their carries",
           "rounding": "up",
           "maximumHundredthsOfBip": 2000
         }
@@ -387,23 +387,23 @@
           "addressSource": "derived-contract",
           "address": null,
           "binding": "immutable-derived-contract",
-          "derivationRule": "The manager share is credited to the address held in the hook public manager slot at the instant of accrual, which is set only by the permissionless bid path and cleared only by deterministic eviction. The derivation is a single storage read inside the same afterSwap callback that books the charge; there is no setter, no administrator and no way to point it at another address. Once credited, a balance belongs to that exact address forever and cannot be moved by a later seat change. While the slot is zero, and also in the very block an address took the seat, the manager share is added to pendingRent and donated to in-range positions instead, so no charge can become unowned and taking the seat is never a free option on the next swap.",
+          "derivationRule": "The project entitlement is credited to the address in the hook public manager slot at the instant of accrual, set only by the permissionless bid path and cleared only by deterministic eviction. The derivation is one storage read inside the same afterSwap callback that books the charge; there is no setter, no administrator and no way to point it elsewhere. Once credited, a balance belongs to that address forever and cannot be moved by a later seat change. While the slot is zero, and in the very block an address takes the seat, the project entitlement joins pendingRent and is donated to in-range positions instead, so no charge becomes unowned. The project carry is independent of the seat and survives a handover, an eviction and the vacant-seat path.",
           "mutable": false,
           "mutationController": "none",
           "newAddressValidation": "none",
           "mutationEvent": null
         }
       ],
-      "ownership": "The charge is split by the immutable constant PLATFORM_SHARE_PPM: exactly 1000 hundredths of a bip accrues to the immutable Programmable owner constant and the remaining 1000 to whoever holds the rotating manager role at the instant of accrual. No builder, project, administrator, launcher or manager can redirect, sweep, net or rescue either liability, and the contract exposes no function that could.",
-      "claimPolicy": "claimFee(to, amount) moves only msg.sender's own accrued balance, to a destination the caller chooses for that individual claim, after the balance and the aggregate total have been decremented. The Programmable owner's balance is keyed to its immutable constant address, so only that address can ever move it, at any block and with no expiry."
+      "ownership": "The two entitlements are accrued independently at the immutable constants PLATFORM_RATE and PROJECT_RATE, each 1000 hundredths of a bip, so the platform receives exactly 10 bps of executed gross quote-side volume and the project the remaining 10 bps. The declared sharePpm values express that ratio; they are not a division of one rounded total. No builder, project, administrator, launcher or manager can redirect, sweep, net or rescue either liability, and the contract exposes no function that could.",
+      "claimPolicy": "claimFee(to, amount) moves only msg.sender's own accrued balance, to a destination the caller chooses for that individual claim, after the balance and the aggregate total have been decremented. It never touches platformFeeCarry or projectFeeCarry, so a claim cannot reset a carried remainder. The Programmable owner's balance is keyed to its immutable constant address, so only that address can ever move it, at any block and with no expiry."
     },
     "customAccounting": {
       "used": true,
       "backingSource": "Every unit the hook owes is backed by its own WETH9 balance. The claimable balance is booked and the matching amount is then taken from PoolManager into this contract inside the same callback, and auction deposits are pulled in with SafeERC20 before they can be spent. Canonical pool reserves inside PoolManager are never counted as backing.",
       "conservationEquation": "WETH9.balanceOf(hook) is greater than or equal to totalDeposits plus pendingRent plus totalFeeOwed, at every block and after every entry point.",
-      "settlement": "Per swap: accrue rent, compute the quadrant charge, return it as a beforeSwap specified delta or an afterSwap unspecified delta, book the platform and manager balances, take the combined amount in WETH from PoolManager into this contract inside afterSwap, then donate pending rent and settle that donation with sync, transfer and settle. The booking and the take happen in one atomic callback, so neither can exist without the other.",
-      "partialFillBehavior": "On the two quadrants charged in afterSwap the basis is the amount PoolManager actually executed, so an unfilled remainder is never charged. On the two charged in beforeSwap the executed amount is compared against the amount the hook priced and any difference reverts with PartialFillRejected rather than charging volume the pool never executed.",
-      "liabilityNamespace": "Three disjoint namespaces inside one contract serving one PoolId: deposits keyed by depositor, pendingRent owed to the pool's in-range positions, and feeOwed keyed by beneficiary. Each has its own aggregate and none is ever netted against another.",
+      "settlement": "Per swap: accrue rent, compute both entitlements from the executed gross against their persisted carries, return the charge as a beforeSwap specified delta or an afterSwap unspecified delta, book the platform and project balances, commit the two carries, take the combined amount in WETH from PoolManager into this contract inside afterSwap, then donate pending rent and settle that donation with sync, transfer and settle. The booking, the carry commit and the take happen in one atomic callback, so none can exist without the others.",
+      "partialFillBehavior": "On the two quadrants charged in afterSwap the basis is the amount PoolManager actually executed, so an unfilled remainder is never charged and no carry is committed for volume that did not run. On the two charged in beforeSwap the executed amount is compared against the amount the hook priced and any difference reverts with PartialFillRejected, which rolls back the carry write with the rest of the swap.",
+      "liabilityNamespace": "Three disjoint namespaces inside one contract serving one PoolId: deposits keyed by depositor, pendingRent owed to the pool's in-range positions, and feeOwed keyed by beneficiary. Two persisted numerator remainders, platformFeeCarry and projectFeeCarry, sit alongside them; they are entitlement state rather than claimable balances and are never paid out directly. Each has its own aggregate and none is ever netted against another.",
       "liabilityKeyDimensions": [
         "poolId",
         "currency",
@@ -412,7 +412,7 @@
       "crossPoolNetting": false,
       "duplicateCurrencyPolicy": "The hook serves exactly one PoolId and one quote currency, so a duplicate-currency collision across pools is structurally impossible. The launched token is never taken, credited or owed by the hook; only WETH9 balances exist in the three namespaces.",
       "failureIsolation": "Any failed take, ledger write or token transfer reverts the whole action it belongs to, and no catch path records an unfunded balance. A claim that fails for one beneficiary changes nothing for another, and a donation that cannot land is skipped so it can never revert a swap or block a withdrawal.",
-      "withdrawalOrdering": "claimFee checks msg.sender's own balance, decrements that balance and the aggregate, then transfers, so a reverted transfer rolls the decrement back. withdrawDeposit accrues rent first, decrements the caller's own deposit and the aggregate, evicts the caller if it is the manager and falls below its floor, and only then transfers."
+      "withdrawalOrdering": "claimFee checks msg.sender's own balance, decrements that balance and the aggregate, then transfers, so a reverted transfer rolls the decrement back and no claim path reads or writes either carry. withdrawDeposit accrues rent first, decrements the caller's own deposit and the aggregate, evicts the caller if it is the manager and falls below its floor, and only then transfers."
     },
     "returnDeltaAccounting": {
       "used": true,
@@ -446,7 +446,7 @@
           "finalCallerDeltaEquation": "pool-manager-swap-delta-minus-hook-delta",
           "specifiedDeltaCanConsumeEntireAmount": false,
           "zeroAmmLeg": "forbidden",
-          "rounding": "beforeSwap returns an exact zero delta on this quadrant, so no rounding happens here. The quote asset is the unspecified currency and its charge is rounded down in afterSwap under the post-action policy.",
+          "rounding": "beforeSwap returns an exact zero delta on this quadrant, so nothing is accrued or carried here. The quote asset is the unspecified currency and both entitlements are accrued from the executed gross in afterSwap under the post-action policy.",
           "partialFillRule": "beforeSwap prices nothing on this quadrant, so a price-limited or partially filled swap simply produces a smaller executed output and the afterSwap charge follows that executed amount exactly.",
           "slippageInvariant": "The router's minimum output is applied to the final caller delta after the afterSwap charge, never to a pre-charge quote, because the beforeSwap delta is exactly zero here.",
           "failureRule": "A foreign PoolId reverts with UnexpectedPool. No other condition in this callback can fail on this quadrant, and a zero specified amount produces a zero delta."
@@ -458,7 +458,7 @@
           "amountSign": "positive-exact-output",
           "specifiedComponent": {
             "mode": "positive-only",
-            "formula": "ceil(requested net currency1 output times 2000 divided by (1000000 minus 2000)); the residual AMM amount becomes the requested output plus this charge, so the pool executes the gross amount and the trader still receives exactly the requested net amount.",
+            "formula": "The combined platform and project entitlement measured on the gross currency1 output that leaves the trader exactly the requested net; the residual AMM amount becomes that gross, so the pool executes it and the trader still receives exactly the requested net amount.",
             "minimum": "zero base units when the requested output is zero",
             "maximum": "the grossed-up charge for the requested output, always strictly below the gross amount the pool executes",
             "minimumSign": "zero",
@@ -475,7 +475,7 @@
                 "counterparty": "not-applicable",
                 "authorizationRule": null,
                 "msgValueRule": null,
-                "amountRule": "Book this charge to the platform and manager balances for this exact PoolId and currency, rounding the platform half up and giving the manager the remainder so the two always sum to the charge.",
+                "amountRule": "Book the platform and project entitlements for this exact PoolId and currency, each accrued from the executed gross against its own persisted carry, and commit both carries in the same callback.",
                 "completionDeadline": "before-hook-return"
               },
               {
@@ -509,7 +509,7 @@
           "finalCallerDeltaEquation": "pool-manager-swap-delta-minus-hook-delta",
           "specifiedDeltaCanConsumeEntireAmount": false,
           "zeroAmmLeg": "forbidden",
-          "rounding": "The charge is grossed up with a ceiling so the realised rate never drifts below the declared 2000 hundredths of a bip of the gross executed amount. The platform half is then rounded up and the manager takes the remainder, so per-swap rounding can never leave the platform short and no base unit is created or lost.",
+          "rounding": "The gross is solved so the trader receives exactly the requested net after the charge measured on that gross; the solve is bounded and reverts with ChargeNotConverged rather than looping. Each entitlement is accrued directly from the executed gross against its own persisted remainder: numerator = executedGross * rate + carry, amount = numerator / 1000000, carry = numerator - amount * 1000000, at rate 1000 for the platform and 1000 for the project, independently rather than by splitting one rounded total. A charge can never consume the whole executed amount; a unit withheld by that bound is returned to the carry, project side first, so the mandatory platform entitlement is the last thing ever reduced.",
           "partialFillRule": "The hook records the gross amount it expects the pool to execute and compares it against the executed currency1 amount in afterSwap. Any difference reverts with PartialFillRejected rather than charging the trader for volume the pool never executed.",
           "slippageInvariant": "The trader receives exactly the requested net output, so a minimum-output bound is unaffected. The maximum-input bound is applied by the router to the final caller delta after the charge has moved the executed gross amount.",
           "failureRule": "A foreign PoolId reverts with UnexpectedPool, a charge that does not fit in int128 reverts with AmountTooLarge, and a mismatch between the priced and executed amount reverts with PartialFillRejected. A zero requested output produces a zero charge and no balance."
@@ -521,7 +521,7 @@
           "amountSign": "negative-exact-input",
           "specifiedComponent": {
             "mode": "positive-only",
-            "formula": "floor(specified gross currency1 input times 2000 divided by 1000000); the residual AMM amount becomes the specified input minus this charge, so the pool swaps only what is left after the charge.",
+            "formula": "The combined platform and project entitlement measured on the specified gross currency1 input, each side accrued against its own carry; the residual AMM amount becomes the specified input minus that charge, so the pool swaps only what is left.",
             "minimum": "zero base units when the specified input is zero or below the smallest chargeable amount",
             "maximum": "the lower of the 2000 hundredths-of-a-bip charge and the specified amount minus one base unit",
             "minimumSign": "zero",
@@ -538,7 +538,7 @@
                 "counterparty": "not-applicable",
                 "authorizationRule": null,
                 "msgValueRule": null,
-                "amountRule": "Book this charge to the platform and manager balances for this exact PoolId and currency, rounding the platform half up and giving the manager the remainder so the two always sum to the charge.",
+                "amountRule": "Book the platform and project entitlements for this exact PoolId and currency, each accrued from the executed gross against its own persisted carry, and commit both carries in the same callback.",
                 "completionDeadline": "before-hook-return"
               },
               {
@@ -572,7 +572,7 @@
           "finalCallerDeltaEquation": "pool-manager-swap-delta-minus-hook-delta",
           "specifiedDeltaCanConsumeEntireAmount": false,
           "zeroAmmLeg": "forbidden",
-          "rounding": "The charge is rounded down so the trader keeps the remainder, and it is explicitly bounded to the specified amount minus one base unit so a residual AMM leg always exists. The platform half is rounded up and the manager takes the remainder, so the two halves always sum to the charge exactly.",
+          "rounding": "The charge is carved out of the specified gross and is explicitly bounded to that amount minus one base unit so a residual AMM leg always exists. Each entitlement is accrued directly from the executed gross against its own persisted remainder: numerator = executedGross * rate + carry, amount = numerator / 1000000, carry = numerator - amount * 1000000, at rate 1000 for the platform and 1000 for the project, independently rather than by splitting one rounded total. A charge can never consume the whole executed amount; a unit withheld by that bound is returned to the carry, project side first, so the mandatory platform entitlement is the last thing ever reduced.",
           "partialFillRule": "The hook records the residual it expects the pool to execute and compares it against the executed currency1 amount in afterSwap. Any difference reverts with PartialFillRejected rather than charging the trader for volume the pool never executed.",
           "slippageInvariant": "The trader's currency1 outlay is exactly the amount it specified, and the router's minimum currency0 output is applied to the final caller delta after the charge has reduced the residual the pool swaps.",
           "failureRule": "A foreign PoolId reverts with UnexpectedPool, a charge that does not fit in int128 reverts with AmountTooLarge, and a mismatch between the priced and executed residual reverts with PartialFillRejected. A zero specified amount produces a zero charge and no balance."
@@ -606,7 +606,7 @@
           "finalCallerDeltaEquation": "pool-manager-swap-delta-minus-hook-delta",
           "specifiedDeltaCanConsumeEntireAmount": false,
           "zeroAmmLeg": "forbidden",
-          "rounding": "beforeSwap returns an exact zero delta on this quadrant, so no rounding happens here. The quote asset is the unspecified currency and its charge is grossed up with a ceiling in afterSwap under the post-action policy.",
+          "rounding": "beforeSwap returns an exact zero delta on this quadrant, so nothing is accrued or carried here. The quote asset is the unspecified currency and both entitlements are accrued from the executed gross in afterSwap under the post-action policy.",
           "partialFillRule": "beforeSwap prices nothing on this quadrant, so a price-limited or partially filled swap simply produces a smaller executed input and the afterSwap charge follows that executed amount exactly.",
           "slippageInvariant": "The router's maximum input is applied to the final caller delta after the afterSwap charge, never to a pre-charge quote, because the beforeSwap delta is exactly zero here.",
           "failureRule": "A foreign PoolId reverts with UnexpectedPool. No other condition in this callback can fail on this quadrant, and a zero specified amount produces a zero delta."
@@ -625,7 +625,7 @@
         "componentPolicies": {
           "unspecified": {
             "mode": "positive-only",
-            "formula": "On zeroForOne exact input: floor(executed gross currency1 output times 2000 divided by 1000000). On oneForZero exact output: ceil(executed net currency1 input times 2000 divided by (1000000 minus 2000)). Zero on the two quadrants already charged in beforeSwap.",
+            "formula": "On zeroForOne exact input the executed gross currency1 output; on oneForZero exact output the gross currency1 input solved from the executed net. Both entitlements are accrued from that gross against their own carries and summed. Zero on the two quadrants already charged in beforeSwap.",
             "minimum": "zero base units when the executed amount is zero or below the smallest chargeable amount",
             "maximum": "the 2000 hundredths-of-a-bip charge on the executed gross currency1 amount, always strictly below that executed amount",
             "minimumSign": "zero",
@@ -642,7 +642,7 @@
                 "counterparty": "not-applicable",
                 "authorizationRule": null,
                 "msgValueRule": null,
-                "amountRule": "Book the combined charge to the platform and manager balances for this exact PoolId and currency; with a vacant seat, or in the block an address took the seat, the manager half joins pendingRent so nothing is left unowned.",
+                "amountRule": "Book the platform and project entitlements for this exact PoolId and currency against their own persisted carries and commit both; with a vacant seat, or in the block an address took the seat, the project entitlement joins pendingRent so nothing is left unowned.",
                 "completionDeadline": "before-hook-return"
               },
               {
@@ -665,8 +665,8 @@
           "currency0": null,
           "currency1": null
         },
-        "bounds": "The returned delta is never negative, never exceeds 2000 hundredths of a bip of the executed gross currency1 amount, and can never consume the whole executed amount because the charge is explicitly capped at the executed amount minus one base unit.",
-        "rounding": "Exact-input and gross-output legs round down so the trader keeps the remainder; exact-output and gross-input legs are grossed up with a ceiling so the realised rate never drifts below the declared rate. Every uint256 to int128 conversion is checked and reverts with AmountTooLarge.",
+        "bounds": "The returned delta is never negative, never exceeds the two entitlements measured on the executed gross currency1 amount, and can never consume the whole executed amount because the charge is explicitly capped at the executed amount minus one base unit, with any withheld unit returned to the carry.",
+        "rounding": "Each entitlement is accrued directly from the executed gross against its own persisted remainder: numerator = executedGross * rate + carry, amount = numerator / 1000000, carry = numerator - amount * 1000000, at rate 1000 for the platform and 1000 for the project, independently rather than by splitting one rounded total. Flooring the combined rate once per swap would destroy any entitlement worth less than a wei, so carrying the numerator makes charging a volume as one swap and as a thousand swaps agree to the wei. A charge can never consume the whole executed amount; a unit withheld by that bound is returned to the carry, project side first, so the mandatory platform entitlement is the last thing ever reduced. Every uint256 to int128 conversion is checked and reverts with AmountTooLarge.",
         "slippageOrMinimums": "The router applies its minimum output or maximum input to the final caller delta after the hook charge, not to a pre-charge quote. The hook adds no bound of its own and consumes no deadline or signature.",
         "failureRule": "A zero executed amount returns zero and creates no balance and no event. A foreign PoolId, a failed take, a failed ledger write or a conversion overflow reverts the whole swap before unlock ends. A donation that cannot land is skipped and never reverts the swap.",
         "executionEvent": "FeeAccrued(bytes32 indexed poolId,address indexed currency,address indexed beneficiary,uint256 amount)"
@@ -766,8 +766,8 @@
       "asset": "WETH9, the canonical pool's quote asset",
       "from": "the caller's swap delta on the canonical PoolKey",
       "to": "claimable balances inside the hook for the platform and the manager",
-      "amountRule": "2000 hundredths of a bip of the executed gross WETH9 amount for the quadrant, rounded down on gross-output legs and grossed up on gross-input legs, and always strictly below the executed amount.",
-      "settlement": "The charge is returned as a beforeSwap specified delta or an afterSwap unspecified delta, booked to the two balances and then taken in full from PoolManager inside the same afterSwap callback.",
+      "amountRule": "1000 hundredths of a bip of the executed gross WETH9 amount to the platform and 1000 to the project, each accrued independently against its own persisted numerator remainder so no entitlement is lost to per-swap flooring, and always strictly below the executed amount.",
+      "settlement": "The charge is returned as a beforeSwap specified delta or an afterSwap unspecified delta, booked to the two balances with both carries committed, and then taken in full from PoolManager inside the same afterSwap callback.",
       "failure": "A zero executed amount accrues nothing. Any arithmetic, take or ledger failure reverts the whole swap and leaves no charge and no balance behind."
     },
     {
@@ -1110,7 +1110,7 @@
     },
     "dataReconstruction": {
       "mode": "events-only",
-      "eventCoverage": "FeeAccrued reconstructs every increase of a claimable balance and FeeClaimed every decrease, both keyed by PoolId, currency and beneficiary. DepositAdded and DepositWithdrawn reconstruct every deposit balance, RentAccrued every movement from a deposit into pendingRent, and RentDonated every movement out of it. ManagerChanged reconstructs the complete auction history and LpFeeUpdated every fee the manager set. Launched fixes the deployment block, the token, the hook and the PoolId that anchor the whole history.",
+      "eventCoverage": "FeeAccrued reconstructs every increase of a claimable balance and FeeClaimed every decrease, both keyed by PoolId, currency and beneficiary. DepositAdded and DepositWithdrawn reconstruct every deposit balance, RentAccrued every movement into pendingRent including the project entitlement queued while the seat is vacant, and RentDonated every movement out of it. ManagerChanged reconstructs the complete auction history and LpFeeUpdated every fee the manager set. Launched fixes the deployment block, the token, the hook and the PoolId that anchor the whole history. The two carried numerator remainders are public reads rather than events, and are reconciled against the reconstructed balances.",
       "cursor": "block-number-transaction-index-log-index",
       "startBlockPolicy": "Start at the block containing the Launched event emitted by the launcher, which is the first block in which the token, the hook and the canonical PoolId exist. Nothing before that block can affect any balance, so no earlier range is ever scanned.",
       "finalityDepth": 64,
@@ -1138,7 +1138,7 @@
         ],
         "solvencyEquation": "balanceOf(hook) >= totalDeposits + pendingRent + totalFeeOwed, evaluated in WETH9 base units at one confirmed block, where each term is reconstructed independently from its own events and cross-checked against the matching contract view.",
         "poolLiquidityTreatment": "excluded-from-hook-reserves",
-        "donationAndDustPolicy": "A direct WETH9 transfer to the hook creates no balance for anyone and is excluded from every claimable amount; no role can attribute or sweep it. Per-swap directional rounding leaves bounded dust in the same surplus, which is disclosed and covered by the inequality rather than swept or redistributed.",
+        "donationAndDustPolicy": "A direct WETH9 transfer to the hook creates no balance for anyone and is excluded from every claimable amount; no role can attribute or sweep it. Per-swap flooring leaves no dust, because each entitlement carries its numerator remainder in platformFeeCarry or projectFeeCarry and is paid out as soon as it reaches one whole unit; the remainders are public and are covered by the solvency inequality rather than swept.",
         "reconciliation": "Rebuild all three namespaces from finalized logs, compare each against its own contract view and their sum against the confirmed balance, and withhold the whole result whenever any single comparison disagrees."
       },
       "sourcePaths": [
@@ -1234,7 +1234,7 @@
           "summary": "This surface moves the hook-owned volume charge into two claimable balances, moves rent from a manager's deposit to the pool's in-range positions, and moves WETH9 out again on claims and withdrawals. The LP fee itself is never touched by the hook.",
           "controls": [
             "Keep the charge on the executed gross quote-side amount and never on the requested amount.",
-            "Credit the platform half rounded up and give the manager the remainder so the two always sum to the charge exactly.",
+            "Accrue the platform and project entitlements independently against their own persisted numerator remainders, so neither is lost to per-swap flooring and a claim never resets a carry.",
             "Skip a donation that cannot land instead of reverting the swap, and never let rent be donated twice."
           ],
           "evidenceRefs": []
@@ -1847,7 +1847,7 @@
     },
     "rationales": {
       "complexity": "One hook coordinates four things at once: pool admission, a quadrant-dependent charge that uses both the before and the after swap return delta, a rent auction with lazy accrual and eviction, and a donation settled inside the same callback. Three contracts and one arithmetic library are in scope.",
-      "customMath": "The arithmetic is bounded rate math rather than new pricing: a floor on gross legs, a ceiling gross-up on net legs, a split that rounds the platform half up and gives the remainder to the manager, and a per-block rent charge capped at the remaining deposit. There is no new pool invariant.",
+      "customMath": "The arithmetic is bounded rate math rather than new pricing: two independent entitlements accrued from the executed gross, each carrying its numerator remainder across swaps so nothing is lost to per-swap flooring, a bounded solve for the exact-output gross that fails closed, and a per-block rent charge capped at the remaining deposit. There is no new pool invariant.",
       "externalDependencies": "Exactly two deployed contracts are called at runtime, both immutable and both fixed as constructor immutables: the Uniswap v4 PoolManager and the WETH9 quote asset. No feed, service, bridge or scheduler is consumed.",
       "externalLiquidity": "The hook owns no position, no share and no third-party inventory, and it never counts canonical pool reserves as backing for anything it owes. Its only asset balance is the quote asset it carries for its own three declared namespaces.",
       "valueAtRisk": "The hook carries three kinds of value for other people at once: auction deposits owned by their depositors, rent owed to the pool's in-range positions, and claimable volume-fee balances including the mandatory platform balance. A defect in the accounting could strand or misattribute any of them.",
@@ -1875,11 +1875,9 @@
     "The pool LP fee belongs to the pool's own providers in full and never satisfies the mandatory Programmable volume fee; the two are separate mechanisms enforced in the same hook.",
     "beforeSwapReturnDelta is enabled because the policy's quadrant-dependent quote-side basis requires it on the two quadrants where the quote asset is the specified currency. It carries the highest review path by design.",
     "Rent reaches only in-range positions. donate pays active positions proportionally, exactly as the pool pays fees, so a provider whose position is out of range earns no rent while it is inactive. This is deliberate, disclosed and tested; the alternative, an internal pull ledger, would mean the hook tracking or holding positions, which is a materially larger trust surface.",
-    "The 50/50 split of the 20 bps total between the platform and the manager is a parameter, not a structural requirement. The implementation derives the split from PLATFORM_SHARE_PPM and the declared total, so a different maintainer-preferred total or split is a constant change plus a re-mined salt rather than a redesign.",
     "The 100-block minimum tenure protects a new manager from being outbid immediately before a large arbitrage, at the cost of letting an incumbent hold a mispriced fee for roughly twenty minutes. Both directions are defensible and the value is immutable once launched.",
     "There is no transition period on eviction. The original auction-managed-market literature stages a handover window; this design installs and evicts immediately once the outbid and tenure conditions are met, which is simpler to reason about and to prove but gives a challenger the whole next block.",
     "With zero in-range positions the rent accumulates in pendingRent and is donated on the next swap that has positions to receive it. It is never lost and it never blocks a swap.",
-    "Per-swap directional rounding leaves bounded dust in the hook. It is covered by the solvency inequality and disclosed rather than swept or redistributed.",
     "The auction is only economically meaningful once the pool carries real arbitrage flow. On a cold pool there is simply no manager and the pool behaves as an ordinary dynamic-fee pool at the stored 30 bps default.",
     "selfCallPolicy is declared as same-pool-swap-fee-enforced-internally because the hook makes direct PoolManager calls. The stricter reading is deliberate: the hook never calls PoolManager.swap on any path, allowedActions excludes swap, and a test proves no path from the hook reaches a same-pool swap, so no charge can ever be skipped by v4's callback suppression.",
     "Routing, quoting, indexing, scanning, aggregation and listing support is not claimed. A hook that returns deltas and a dynamic fee is not automatically supported by every provider; local compatibility is not provider approval and no fallback is asserted for a provider that does not support this runtime.",
@@ -1887,7 +1885,9 @@
     "Taking the auction seat costs one block of rent immediately and the manager share of the volume charge is carried to the pool's positions for the whole entry block, so a searcher cannot take a vacant seat, collect the manager share of a swap it front-ran and withdraw its deposit in one block.",
     "One block of entry rent is a blunt instrument. It makes taking the seat cost something, but the sharper guard is that a manager accrues no share of the charge in its entry block. A maintainer may prefer a longer prepaid period instead; both are constants, not structure.",
     "WETH9 is declared as the pool's quote asset in assets[] and as an external-call target, not as an onchain protocol dependency record. It is absent from every deployment reference the standard ships, so no deploymentRecordId can be cited for it. Its address and the runtime hash observed at the pinned mainnet block are recorded in evidence/deployment-weth9-ethereum.json.",
-    "The dependency baseline is model-specific-pinned rather than programmable-tested. The pins are the programmable-tested set unchanged, plus the solmate revision that Uniswap v4 Core's own ProtocolFees requires transitively. That choice adds the model-specific-dependency-review and model-specific-architecture-review candidate gates."
+    "The dependency baseline is model-specific-pinned rather than programmable-tested. The pins are the programmable-tested set unchanged, plus the solmate revision that Uniswap v4 Core's own ProtocolFees requires transitively. That choice adds the model-specific-dependency-review and model-specific-architecture-review candidate gates.",
+    "The 20 bps total is split as two independent 10 bps entitlements, the platform's and the project's, each accrued from the executed gross against its own persisted numerator remainder. The rates are constants, so a maintainer-preferred total or split is a constant change plus a re-mined salt rather than a redesign.",
+    "Rounding carries the numerator rather than the quotient, so charging a given volume as one swap and as a thousand tiny swaps agree to the wei and no entitlement rounds away. The two remainders, platformFeeCarry and projectFeeCarry, are public, are never reset by a claim, and are covered by the solvency inequality."
   ],
   "unresolved": []
 }
