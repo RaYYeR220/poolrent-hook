@@ -19,8 +19,7 @@ remappings = [
   "@openzeppelin/uniswap-hooks/=lib/uniswap-hooks/",
   "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
   "forge-std/=lib/forge-std/src/",
-  "permit2/=lib/permit2/",
-  "solmate/=lib/v4-core/lib/solmate/"
+  "solmate/=lib/v4-core/lib/solmate/",
 ]
 
 [fuzz]
@@ -30,3 +29,6 @@ runs = 1000
 runs = 256
 depth = 64
 fail_on_revert = false
+
+[rpc_endpoints]
+mainnet = "${MAINNET_RPC_URL}"
