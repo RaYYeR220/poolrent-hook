@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "standardVersion": "1.3.0",
-  "submissionHash": "sha256:77f49dcbeb5d6009a003c0d1dbe0bec3c5c431e60fd9c3bc4d606e85daf4778d",
+  "submissionHash": "sha256:554cebd3ceac0069fc3e2841abb86c601141beb7660c47ad4dae3689e90c2bc0",
   "closureMethod": "declared-bytes-and-resolved-solidity-and-javascript-imports-v10",
   "closure": {
     "status": "complete",
@@ -527,8 +527,8 @@
     {
       "path": "src/PoolRentHook.sol",
       "kind": "source-entry",
-      "bytes": 28346,
-      "sha256": "c62fcfff4dd6094f539178efe69a5ccb7ff9f3b593759b0d1fa1729bc0611b9f"
+      "bytes": 27915,
+      "sha256": "17529c518bf5e78bb675ceda4978fef73686de55537d49d11fc7a92817140f3e"
     },
     {
       "path": "src/PoolRentLauncher.sol",
@@ -551,8 +551,8 @@
     {
       "path": "submissions/poolrent/EVIDENCE.md",
       "kind": "package:EVIDENCE.md",
-      "bytes": 8584,
-      "sha256": "771d06225af878f4b53c7879c847ad38d9260cd56bdfff40f5de2c8e492a26a2"
+      "bytes": 9004,
+      "sha256": "2bfafb129d69f4423089eca8687e5141c0789220e03d8d9e2c2e98b2ef9136b5"
     },
     {
       "path": "submissions/poolrent/PROPOSAL.md",
@@ -563,8 +563,8 @@
     {
       "path": "submissions/poolrent/TEST_PLAN.md",
       "kind": "package:TEST_PLAN.md",
-      "bytes": 13815,
-      "sha256": "df9ffcf3690c349b3bcb1b42b316276f64fc8d6c5b7a3b99286573501308ca4b"
+      "bytes": 14932,
+      "sha256": "8dbe03efe31d710bd6a07f7e92a0cbd871bacd6db64b873d2bad48d092a0e6af"
     },
     {
       "path": "submissions/poolrent/THREAT_MODEL.md",
@@ -575,14 +575,14 @@
     {
       "path": "submissions/poolrent/compatibility-report.json",
       "kind": "package:compatibility-report.json",
-      "bytes": 9995,
-      "sha256": "bcea0b462c0bdaf797a23083a944552a1400e05cc0b99022e6e024c545f78914"
+      "bytes": 9570,
+      "sha256": "2fc03b7c00ce704edd2d412f222fdc13a098661b653cdb26732d1d979f9fbeec"
     },
     {
       "path": "submissions/poolrent/evidence/dependency-lock.json",
       "kind": "dependency-lock",
-      "bytes": 5192,
-      "sha256": "0326fbbf82aae6ea6fbb05ade23dc126f826cedac4cac6c000bb1d58a5890cd7"
+      "bytes": 5276,
+      "sha256": "c2f5901275c1d60527283616b0d7552542ddbb0641aa4560fb76d5dcf17f5a9d"
     },
     {
       "path": "submissions/poolrent/evidence/deployment-v4-poolmanager-ethereum.json",
@@ -599,20 +599,26 @@
     {
       "path": "submissions/poolrent/evidence/slither-report.txt",
       "kind": "gate-evidence:static-analysis",
-      "bytes": 5189,
-      "sha256": "638ad4446df7ae8676548fcd0b6af4041feb62be5cd193306777989e57af3053"
+      "bytes": 4812,
+      "sha256": "f537370801ed47c81bf82f7ce0210b9eeba0fa1f7880ba69caed02fba9776f0d"
     },
     {
       "path": "submissions/poolrent/evidence/test-evidence.json",
       "kind": "test-evidence",
-      "bytes": 6185,
-      "sha256": "2b50bdaa13d1ae1e750264f1b85e671736c21cd48826d6a1c33a3c370ce8a4a9"
+      "bytes": 7221,
+      "sha256": "6c961d3835d3b2eb4feccba11ee46dcc5a56295a627ddbe534c43aab44e09083"
     },
     {
       "path": "submissions/poolrent/submission.json",
       "kind": "package:submission.json",
-      "bytes": 114240,
-      "sha256": "df0f7d84a2a1f56b43087e549495f719ebece986ae7116e7c60c07300fce116a"
+      "bytes": 115338,
+      "sha256": "8e55b0ce8556aae8076a0fe9a41e7ed78316db24215f49da2a096b60df0f77a3"
+    },
+    {
+      "path": "test/Adversarial.t.sol",
+      "kind": "test-entry",
+      "bytes": 62785,
+      "sha256": "2056b100228d19b580be463bc227d6b1559dc0b73f44b65cf2e7ae5ebc1541bd"
     },
     {
       "path": "test/Auction.t.sol",
@@ -689,6 +695,7 @@
     "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol",
     "@uniswap/v4-core/src/libraries/StateLibrary.sol",
     "@uniswap/v4-core/src/libraries/TickMath.sol",
+    "@uniswap/v4-core/src/libraries/TransientStateLibrary.sol",
     "@uniswap/v4-core/src/test/PoolModifyLiquidityTest.sol",
     "@uniswap/v4-core/src/test/PoolSwapTest.sol",
     "@uniswap/v4-core/src/types/BalanceDelta.sol",
@@ -2276,6 +2283,14 @@
     },
     {
       "specifier": "@openzeppelin/contracts/token/ERC20/ERC20.sol",
+      "importer": "test/Adversarial.t.sol",
+      "remappingPrefix": "@openzeppelin/contracts/",
+      "remappingTarget": "lib/openzeppelin-contracts/contracts/",
+      "resolvedPath": "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
+      "specifier": "@openzeppelin/contracts/token/ERC20/ERC20.sol",
       "importer": "test/utils/TestQuoteToken.sol",
       "remappingPrefix": "@openzeppelin/contracts/",
       "remappingTarget": "lib/openzeppelin-contracts/contracts/",
@@ -2301,6 +2316,14 @@
     {
       "specifier": "@openzeppelin/contracts/token/ERC20/IERC20.sol",
       "importer": "src/PoolRentLauncher.sol",
+      "remappingPrefix": "@openzeppelin/contracts/",
+      "remappingTarget": "lib/openzeppelin-contracts/contracts/",
+      "resolvedPath": "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
+      "specifier": "@openzeppelin/contracts/token/ERC20/IERC20.sol",
+      "importer": "test/Adversarial.t.sol",
       "remappingPrefix": "@openzeppelin/contracts/",
       "remappingTarget": "lib/openzeppelin-contracts/contracts/",
       "resolvedPath": "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol",
@@ -2363,11 +2386,35 @@
       "kind": "solidity-dependency-import"
     },
     {
+      "specifier": "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol",
+      "importer": "test/Adversarial.t.sol",
+      "remappingPrefix": "@openzeppelin/contracts/",
+      "remappingTarget": "lib/openzeppelin-contracts/contracts/",
+      "resolvedPath": "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
       "specifier": "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol",
       "importer": "src/PoolRentHook.sol",
       "remappingPrefix": "@openzeppelin/uniswap-hooks/",
       "remappingTarget": "lib/uniswap-hooks/",
       "resolvedPath": "lib/uniswap-hooks/src/base/BaseHook.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
+      "specifier": "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol",
+      "importer": "test/Adversarial.t.sol",
+      "remappingPrefix": "@openzeppelin/uniswap-hooks/",
+      "remappingTarget": "lib/uniswap-hooks/",
+      "resolvedPath": "lib/uniswap-hooks/src/base/BaseHook.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
+      "specifier": "@uniswap/v4-core/src/PoolManager.sol",
+      "importer": "test/Adversarial.t.sol",
+      "remappingPrefix": "@uniswap/v4-core/",
+      "remappingTarget": "lib/v4-core/",
+      "resolvedPath": "lib/v4-core/src/PoolManager.sol",
       "kind": "solidity-dependency-import"
     },
     {
@@ -2381,6 +2428,14 @@
     {
       "specifier": "@uniswap/v4-core/src/interfaces/IHooks.sol",
       "importer": "lib/uniswap-hooks/src/base/BaseHook.sol",
+      "remappingPrefix": "@uniswap/v4-core/",
+      "remappingTarget": "lib/v4-core/",
+      "resolvedPath": "lib/v4-core/src/interfaces/IHooks.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
+      "specifier": "@uniswap/v4-core/src/interfaces/IHooks.sol",
+      "importer": "test/Adversarial.t.sol",
       "remappingPrefix": "@uniswap/v4-core/",
       "remappingTarget": "lib/v4-core/",
       "resolvedPath": "lib/v4-core/src/interfaces/IHooks.sol",
@@ -2421,6 +2476,14 @@
     {
       "specifier": "@uniswap/v4-core/src/interfaces/IPoolManager.sol",
       "importer": "src/PoolRentLauncher.sol",
+      "remappingPrefix": "@uniswap/v4-core/",
+      "remappingTarget": "lib/v4-core/",
+      "resolvedPath": "lib/v4-core/src/interfaces/IPoolManager.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
+      "specifier": "@uniswap/v4-core/src/interfaces/IPoolManager.sol",
+      "importer": "test/Adversarial.t.sol",
       "remappingPrefix": "@uniswap/v4-core/",
       "remappingTarget": "lib/v4-core/",
       "resolvedPath": "lib/v4-core/src/interfaces/IPoolManager.sol",
@@ -2477,6 +2540,14 @@
     {
       "specifier": "@uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol",
       "importer": "src/PoolRentLauncher.sol",
+      "remappingPrefix": "@uniswap/v4-core/",
+      "remappingTarget": "lib/v4-core/",
+      "resolvedPath": "lib/v4-core/src/interfaces/callback/IUnlockCallback.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
+      "specifier": "@uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol",
+      "importer": "test/Adversarial.t.sol",
       "remappingPrefix": "@uniswap/v4-core/",
       "remappingTarget": "lib/v4-core/",
       "resolvedPath": "lib/v4-core/src/interfaces/callback/IUnlockCallback.sol",
@@ -2660,6 +2731,14 @@
     },
     {
       "specifier": "@uniswap/v4-core/src/libraries/TickMath.sol",
+      "importer": "test/Adversarial.t.sol",
+      "remappingPrefix": "@uniswap/v4-core/",
+      "remappingTarget": "lib/v4-core/",
+      "resolvedPath": "lib/v4-core/src/libraries/TickMath.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
+      "specifier": "@uniswap/v4-core/src/libraries/TickMath.sol",
       "importer": "test/Auction.t.sol",
       "remappingPrefix": "@uniswap/v4-core/",
       "remappingTarget": "lib/v4-core/",
@@ -2704,6 +2783,14 @@
       "remappingPrefix": "@uniswap/v4-core/",
       "remappingTarget": "lib/v4-core/",
       "resolvedPath": "lib/v4-core/src/libraries/TickMath.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
+      "specifier": "@uniswap/v4-core/src/libraries/TransientStateLibrary.sol",
+      "importer": "test/Adversarial.t.sol",
+      "remappingPrefix": "@uniswap/v4-core/",
+      "remappingTarget": "lib/v4-core/",
+      "resolvedPath": "lib/v4-core/src/libraries/TransientStateLibrary.sol",
       "kind": "solidity-dependency-import"
     },
     {
@@ -2781,6 +2868,14 @@
     {
       "specifier": "@uniswap/v4-core/src/types/BalanceDelta.sol",
       "importer": "src/PoolRentLauncher.sol",
+      "remappingPrefix": "@uniswap/v4-core/",
+      "remappingTarget": "lib/v4-core/",
+      "resolvedPath": "lib/v4-core/src/types/BalanceDelta.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
+      "specifier": "@uniswap/v4-core/src/types/BalanceDelta.sol",
+      "importer": "test/Adversarial.t.sol",
       "remappingPrefix": "@uniswap/v4-core/",
       "remappingTarget": "lib/v4-core/",
       "resolvedPath": "lib/v4-core/src/types/BalanceDelta.sol",
@@ -2884,6 +2979,14 @@
     },
     {
       "specifier": "@uniswap/v4-core/src/types/Currency.sol",
+      "importer": "test/Adversarial.t.sol",
+      "remappingPrefix": "@uniswap/v4-core/",
+      "remappingTarget": "lib/v4-core/",
+      "resolvedPath": "lib/v4-core/src/types/Currency.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
+      "specifier": "@uniswap/v4-core/src/types/Currency.sol",
       "importer": "test/Fee.t.sol",
       "remappingPrefix": "@uniswap/v4-core/",
       "remappingTarget": "lib/v4-core/",
@@ -2996,6 +3099,14 @@
     },
     {
       "specifier": "@uniswap/v4-core/src/types/PoolKey.sol",
+      "importer": "test/Adversarial.t.sol",
+      "remappingPrefix": "@uniswap/v4-core/",
+      "remappingTarget": "lib/v4-core/",
+      "resolvedPath": "lib/v4-core/src/types/PoolKey.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
+      "specifier": "@uniswap/v4-core/src/types/PoolKey.sol",
       "importer": "test/Fee.t.sol",
       "remappingPrefix": "@uniswap/v4-core/",
       "remappingTarget": "lib/v4-core/",
@@ -3053,6 +3164,14 @@
     {
       "specifier": "@uniswap/v4-core/src/types/PoolOperation.sol",
       "importer": "src/PoolRentLauncher.sol",
+      "remappingPrefix": "@uniswap/v4-core/",
+      "remappingTarget": "lib/v4-core/",
+      "resolvedPath": "lib/v4-core/src/types/PoolOperation.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
+      "specifier": "@uniswap/v4-core/src/types/PoolOperation.sol",
+      "importer": "test/Adversarial.t.sol",
       "remappingPrefix": "@uniswap/v4-core/",
       "remappingTarget": "lib/v4-core/",
       "resolvedPath": "lib/v4-core/src/types/PoolOperation.sol",
@@ -3172,6 +3291,14 @@
     },
     {
       "specifier": "forge-std/Vm.sol",
+      "importer": "test/Adversarial.t.sol",
+      "remappingPrefix": "forge-std/",
+      "remappingTarget": "lib/forge-std/src/",
+      "resolvedPath": "lib/forge-std/src/Vm.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
+      "specifier": "forge-std/Vm.sol",
       "importer": "test/Auction.t.sol",
       "remappingPrefix": "forge-std/",
       "remappingTarget": "lib/forge-std/src/",
@@ -3220,5 +3347,5 @@
     }
   ],
   "javascriptImportResolutions": [],
-  "reviewTargetHash": "sha256:7dbf8cdeec6abee362fc9ba703a8ab5fb007da32ba4980cbf7cdfe049b6c1479"
+  "reviewTargetHash": "sha256:091a655a6ba847a36ff22bf4a40962b4491f20a70572dc4eba4caafa671a8c14"
 }

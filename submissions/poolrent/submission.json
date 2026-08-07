@@ -254,7 +254,8 @@
       "testPaths": [
         "test/Fee.t.sol",
         "test/Invariants.t.sol",
-        "test/Fuzz.t.sol"
+        "test/Fuzz.t.sol",
+        "test/Adversarial.t.sol"
       ]
     }
   },
@@ -1147,7 +1148,8 @@
       "testPaths": [
         "test/Invariants.t.sol",
         "test/Fee.t.sol",
-        "test/Auction.t.sol"
+        "test/Auction.t.sol",
+        "test/Adversarial.t.sol"
       ]
     },
     "platformHandoff": {
@@ -1200,7 +1202,8 @@
         "test/Auction.t.sol",
         "test/Invariants.t.sol",
         "test/Fuzz.t.sol",
-        "test/Smoke.t.sol"
+        "test/Smoke.t.sol",
+        "test/Adversarial.t.sol"
       ],
       "schemaPaths": [],
       "evidencePaths": [],
@@ -1348,7 +1351,8 @@
         "test/Fork.t.sol",
         "test/utils/PoolRentFixture.sol",
         "test/utils/TestQuoteToken.sol",
-        "test/handlers/PoolRentHandler.sol"
+        "test/handlers/PoolRentHandler.sol",
+        "test/Adversarial.t.sol"
       ],
       "schemaPaths": [],
       "evidencePaths": [],
@@ -1803,6 +1807,7 @@
       "script/Launch.s.sol"
     ],
     "testPaths": [
+      "test/Adversarial.t.sol",
       "test/Auction.t.sol",
       "test/Fee.t.sol",
       "test/Fork.t.sol",

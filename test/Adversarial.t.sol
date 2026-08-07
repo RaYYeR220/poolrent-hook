@@ -1091,11 +1091,11 @@ contract AdversarialTest is PoolRentFixture {
         _assertSolvent();
     }
 
-    /// @dev The one write with no event of its own: a sub-donation-floor provider share added to
-    ///      `pendingRent` inside `_accrueFee`. It is only observable once a `RentDonated` or a
-    ///      `RentAccrued` anchors the balance, so the divergence an indexer can carry is bounded by
-    ///      `MIN_DONATION` and is closed by the next real swap. Stated, bounded, not hidden.
-    function test_events_subFloorProviderShareIsTheOnlyUnanchoredWrite() public {
+    /// @dev The tightest case for log-only reconstruction: a provider share so small it sits below
+    ///      the donation floor and is carried rather than donated. It still emits `RentAccrued` with
+    ///      a zero manager, because the amount came from a swap charge and not from anyone's
+    ///      deposit, so a replay tracks it exactly rather than drifting until the next donation.
+    function test_events_subFloorProviderShareIsStillAnchored() public {
         assertEq(hook.manager(), address(0), "no manager, so the provider share is queued not accrued");
 
         vm.recordLogs();
@@ -1103,8 +1103,8 @@ contract AdversarialTest is PoolRentFixture {
         Rebuilt memory rebuilt = _replay(vm.getRecordedLogs());
 
         assertEq(hook.pendingRent(), 1, "the chain queued one wei for the providers");
-        assertEq(rebuilt.pendingRent, 0, "the logs alone cannot see it yet");
-        assertLt(hook.pendingRent(), hook.MIN_DONATION(), "the gap is bounded by the donation floor");
+        assertEq(rebuilt.pendingRent, hook.pendingRent(), "and the logs alone see the same wei");
+        assertLt(hook.pendingRent(), hook.MIN_DONATION(), "it is below the donation floor, so it is carried");
         assertEq(rebuilt.feePlatform, hook.feeOwed(PROGRAMMABLE_OWNER), "everything that became a liability is evented");
 
         // The next swap that clears the floor donates the queue and republishes the balance.
@@ -1287,9 +1287,13 @@ contract AdversarialTest is PoolRentFixture {
             } else if (topic == RentAccrued.selector) {
                 address manager = _addressTopic(log.topics[1]);
                 (uint256 amount, uint256 pending) = abi.decode(log.data, (uint256, uint256));
-                _touch(manager);
-                _replayDeposits[manager] -= amount;
-                _replayTotalDeposits -= amount;
+                // A zero manager means the amount came from the provider share of a swap charge,
+                // not from anyone's deposit, so nothing is debited in that case.
+                if (manager != address(0)) {
+                    _touch(manager);
+                    _replayDeposits[manager] -= amount;
+                    _replayTotalDeposits -= amount;
+                }
                 // The event carries the resulting balance, so this is an assignment, not a sum.
                 _replayPendingRent = pending;
             } else if (topic == RentDonated.selector) {

@@ -363,6 +363,9 @@ contract PoolRentHook is BaseHook {
         address currentManager = manager;
         if (currentManager == address(0) || block.number == tenureStartBlock) {
             pendingRent += managerAmount;
+            // Evented like every other write to pendingRent, so an indexer can rebuild the balance
+            // from logs alone even when the amount sits below the donation floor and is carried.
+            emit RentAccrued(currentManager, managerAmount, pendingRent);
         } else {
             feeOwed[currentManager] += managerAmount;
             totalFeeOwed += managerAmount;
