@@ -1,0 +1,10 @@
+cache/
+out/
+broadcast/
+node_modules/
+.env
+.env.*
+.DS_Store
+*.bundle
+*-backup*
+scratch/
