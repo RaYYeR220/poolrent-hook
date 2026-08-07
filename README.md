@@ -1,5 +1,7 @@
 # PoolRent
 
+[![CI](https://github.com/RaYYeR220/poolrent-hook/actions/workflows/ci.yml/badge.svg)](https://github.com/RaYYeR220/poolrent-hook/actions/workflows/ci.yml)
+
 **The right to set a pool's fee is auctioned. The rent goes to the people who supply the liquidity.**
 
 A Uniswap v4 hook. Arbitrageurs already compete for the first trade against a stale pool price — they

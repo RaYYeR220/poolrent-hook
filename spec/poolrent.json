@@ -4,7 +4,10 @@
   "name": "PoolRent",
   "stage": "prototype",
   "summary": "The right to set one canonical Uniswap v4 launch pool's LP fee is sold on a continuous, permissionless rent auction, and the rent is paid to that pool's liquidity providers.",
-  "chain": { "chainId": 1, "network": "ethereum" },
+  "chain": {
+    "chainId": 1,
+    "network": "ethereum"
+  },
   "pool": {
     "currencies": "sorted(launchedToken, weth9)",
     "quoteAsset": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
@@ -26,8 +29,16 @@
     ],
     "poolManager": "0x000000000004444c5dc75cB358380D2e3dE08A90",
     "hookData": "unused",
-    "directPoolManagerCalls": ["donate", "take", "sync", "settle"],
-    "neverCalls": ["swap", "modifyLiquidity"],
+    "directPoolManagerCalls": [
+      "donate",
+      "take",
+      "sync",
+      "settle"
+    ],
+    "neverCalls": [
+      "swap",
+      "modifyLiquidity"
+    ],
     "upgradeable": false,
     "sharedAcrossPools": false
   },
@@ -58,13 +69,18 @@
       "afterSwapQuadrants": "charged-on-executed-amount",
       "beforeSwapQuadrants": "rejected"
     },
-    "selfCallPolicy": "same-pool-swap-forbidden",
+    "selfCallPolicy": "same-pool-swap-fee-enforced-internally",
     "accrualMode": "claimable-liability",
-    "liabilityKeyDimensions": ["poolId", "currency", "owner"],
+    "liabilityKeyDimensions": [
+      "poolId",
+      "currency",
+      "owner"
+    ],
     "crossPoolNetting": false,
     "valueFlowId": "programmable-volume-fee-accrual",
     "collectionEvent": "FeeAccrued(bytes32,address,address,uint256)",
-    "claimEvent": "FeeClaimed(bytes32,address,address,address,uint256)"
+    "claimEvent": "FeeClaimed(bytes32,address,address,address,uint256)",
+    "selfCallNote": "The hook makes direct PoolManager calls (donate, take, sync, settle) but never swap or modifyLiquidity, so no hook-initiated same-pool swap exists."
   },
   "lpFee": {
     "mode": "dynamic",
@@ -95,20 +111,29 @@
   },
   "solvency": {
     "equation": "WETH.balanceOf(hook) >= totalDeposits + pendingRent + totalFeeOwed",
-    "namespaces": ["auction-deposits", "pending-rent", "fee-liabilities"],
+    "namespaces": [
+      "auction-deposits",
+      "pending-rent",
+      "fee-liabilities"
+    ],
     "netting": "never"
   },
   "authorities": [
     {
       "role": "programmable-fee-owner",
       "holder": "0x4957f49620AFf3Adbbe8195a4f633E49cc93376c",
-      "capabilities": ["claim-own-liability-to-destination-chosen-per-claim"],
+      "capabilities": [
+        "claim-own-liability-to-destination-chosen-per-claim"
+      ],
       "mutable": false
     },
     {
       "role": "pool-manager",
       "holder": "current-auction-winner",
-      "capabilities": ["set-lp-fee-within-immutable-bounds", "claim-own-liability"],
+      "capabilities": [
+        "set-lp-fee-within-immutable-bounds",
+        "claim-own-liability"
+      ],
       "mutable": true,
       "mutationController": "permissionless-rent-auction"
     }
