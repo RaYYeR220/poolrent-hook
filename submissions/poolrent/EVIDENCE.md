@@ -100,6 +100,29 @@ Not applicable. No maintainer acceptance record exists for this model.
 
 `gate-status.json` in `evidence/` records prototype checks only. It cannot complete any row above.
 
+## Open verifier findings, stated rather than worked around
+
+`verify-package` reports three findings that this submission does not attempt to make green, because
+doing so honestly is not in the builder's power:
+
+1. **`solmate/src/auth/Owned.sol` is not covered by the dependency lock.** It is reached only through
+   Uniswap v4 Core's own vendored submodule at `lib/v4-core/lib/solmate`, pinned by the v4 Core
+   revision, because v4 Core's `ProtocolFees` imports it and the suite deploys a real `PoolManager`.
+   No contract under `src/` imports solmate. It cannot be added to the `programmable-tested`
+   baseline, whose dependency set is frozen, and adding the `solmate/` prefix to v4 Core's own entry
+   trips `importPrefixes differs from the trusted definition`. Any submission that instantiates a
+   real PoolManager in its tests will hit this.
+2. **`PoolManager` has no `revision` and both onchain dependencies report
+   `sourceStatus: runtime-observed-source-not-reproduced`.** The runtime hashes are real, taken from
+   code observed at the pinned mainnet block, but nobody rebuilt PoolManager's bytecode from source
+   to compare. Declaring `matched` would assert a reproduction that was never performed.
+3. **`WETH9` resolves to no committed deployment record.** It is not present in any deployment
+   reference shipped with the builder skill, so it is declared as an ordinary existing ERC-20 with
+   its address and observed runtime hash instead of a `deploymentRecordId`.
+
+None of the three affects the hook's behaviour, its accounting, or any claim made in this package.
+They are recorded here so a reviewer sees them from the submission rather than from the verifier.
+
 ## What this evidence does not prove
 
 It does not prove that the contracts are audited, accepted, integrated, deployed, verified, routed,

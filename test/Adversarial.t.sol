@@ -60,38 +60,87 @@ contract RevertQuote is QuoteMock {
     }
 }
 
-/// @dev USDT-shaped: it moves the balance correctly and returns nothing at all.
-contract NoDataQuote is QuoteMock {
-    function transfer(address to, uint256 value) public override returns (bool) {
-        _transfer(_msgSender(), to, value);
-        assembly ("memory-safe") {
-            return(0, 0)
-        }
+/// @dev A hand-rolled ERC-20 whose `transfer` and `transferFrom` declare no return value at all —
+///      the USDT shape, which cannot be expressed by overriding OpenZeppelin's bool-returning
+///      `ERC20`. The five storage slots below mirror that `ERC20` exactly (balances, allowances,
+///      total supply, name, symbol, in that order), which is what lets these be `vm.etch`ed over
+///      the live quote token and still read the balances it already holds.
+abstract contract NoReturnQuote {
+    mapping(address account => uint256) internal _balances;
+    mapping(address account => mapping(address spender => uint256)) internal _allowances;
+    uint256 internal _totalSupply;
+    string internal _name;
+    string internal _symbol;
+
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+
+    function name() external view returns (string memory) {
+        return _name;
     }
 
-    function transferFrom(address from, address to, uint256 value) public override returns (bool) {
-        _spendAllowance(from, _msgSender(), value);
-        _transfer(from, to, value);
-        assembly ("memory-safe") {
-            return(0, 0)
-        }
+    function symbol() external view returns (string memory) {
+        return _symbol;
+    }
+
+    function decimals() external pure returns (uint8) {
+        return 18;
+    }
+
+    function totalSupply() external view returns (uint256) {
+        return _totalSupply;
+    }
+
+    function balanceOf(address account) external view returns (uint256) {
+        return _balances[account];
+    }
+
+    function allowance(address owner, address spender) external view returns (uint256) {
+        return _allowances[owner][spender];
+    }
+
+    function approve(address spender, uint256 value) external returns (bool) {
+        _allowances[msg.sender][spender] = value;
+        emit Approval(msg.sender, spender, value);
+        return true;
+    }
+
+    function mint(address to, uint256 amount) external {
+        _totalSupply += amount;
+        _balances[to] += amount;
+        emit Transfer(address(0), to, amount);
+    }
+
+    function _move(address from, address to, uint256 value) internal {
+        _balances[from] -= value;
+        _balances[to] += value;
+        emit Transfer(from, to, value);
+    }
+
+    function _spend(address owner, address spender, uint256 value) internal {
+        uint256 current = _allowances[owner][spender];
+        if (current != type(uint256).max) _allowances[owner][spender] = current - value;
+    }
+}
+
+/// @dev USDT-shaped: it moves the balance correctly and returns nothing at all.
+contract NoDataQuote is NoReturnQuote {
+    function transfer(address to, uint256 value) external {
+        _move(msg.sender, to, value);
+    }
+
+    function transferFrom(address from, address to, uint256 value) external {
+        _spend(from, msg.sender, value);
+        _move(from, to, value);
     }
 }
 
 /// @dev Returns nothing *and* moves nothing. This is the one shape `SafeERC20` cannot see through,
 ///      which is exactly why the hook's per-account scoping has to carry the safety argument.
-contract SilentQuote is QuoteMock {
-    function transfer(address, uint256) public pure override returns (bool) {
-        assembly ("memory-safe") {
-            return(0, 0)
-        }
-    }
+contract SilentQuote is NoReturnQuote {
+    function transfer(address, uint256) external pure {}
 
-    function transferFrom(address, address, uint256) public pure override returns (bool) {
-        assembly ("memory-safe") {
-            return(0, 0)
-        }
-    }
+    function transferFrom(address, address, uint256) external pure {}
 }
 
 interface IQuoteObserver {
@@ -168,11 +217,7 @@ contract ReentrantActor is IQuoteObserver {
         // bubbling it into the frame that is being attacked.
         (bool ok, bytes memory err) = target.call(payload);
         reentryReverted = !ok;
-        bytes4 selector;
-        assembly ("memory-safe") {
-            selector := mload(add(err, 0x20))
-        }
-        reentryError = selector;
+        reentryError = err.length >= 4 ? bytes4(err) : bytes4(0);
     }
 }
 
@@ -259,11 +304,7 @@ contract NestedRouter is IUnlockCallback {
         // unwinding the frame that is probing for it.
         (bool ok, bytes memory err) = address(manager).call(abi.encodeWithSelector(IPoolManager.unlock.selector, ""));
         nestedUnlockRefused = !ok;
-        bytes4 selector;
-        assembly ("memory-safe") {
-            selector := mload(add(err, 0x20))
-        }
-        nestedUnlockError = selector;
+        nestedUnlockError = err.length >= 4 ? bytes4(err) : bytes4(0);
     }
 
     function _resolve(Currency currency, address payer, int128 amount) private {
@@ -1387,10 +1428,7 @@ contract AdversarialTest is PoolRentFixture {
         return false;
     }
 
-    function _selectorOf(bytes memory data) private pure returns (bytes4 selector) {
-        if (data.length < 4) return bytes4(0);
-        assembly ("memory-safe") {
-            selector := mload(add(data, 0x20))
-        }
+    function _selectorOf(bytes memory data) private pure returns (bytes4) {
+        return data.length >= 4 ? bytes4(data) : bytes4(0);
     }
 }

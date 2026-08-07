@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "attestation": "builder-declared-untrusted",
   "modelId": "poolrent",
-  "commit": "286a76f6d36ec7fb943dfe2adc87c08d7b71a057",
+  "commit": "b191ffd42475366327dc6dfffa63838f8cb42198",
   "toolVersions": {
     "forge": "1.7.1",
     "solc": "0.8.26",
