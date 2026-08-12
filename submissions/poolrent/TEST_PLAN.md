@@ -70,10 +70,13 @@ Every item the policy requires, with the file that proves it. All in `test/Fee.t
 | 10 | Liabilities are solvent, pool-, currency- and owner-scoped, never cross-pool netted | `totalFeeOwed` equals the sum of per-account entries across a manager handover; the hook serves exactly one pool by construction |
 | 11 | Collection and claim events reconcile with balances and liabilities under the declared rounding | Events summed per beneficiary equal the `feeOwed` growth; `FeeClaimed` matched against the transfer |
 
-Rounding cases proven explicitly: a charge of three wei splits as platform two / manager one; a large
-charge splits as `ceil(total/2)` / `floor(total/2)`; a swap whose executed quote amount is 499 wei
-accrues nothing and emits nothing; a fuzz asserts `platform + manager == charge` for every input and
-that a charge is always strictly less than the amount it is taken from.
+Rounding is proven at the rate level and at the accrual level, rather than by splitting one rounded
+charge between the two beneficiaries. At the rate level a fuzz asserts `platform + project ==
+effective` for every selected total with the platform pinned to a constant 10 bps. At the accrual
+level a fuzz asserts `amount * 1_000_000 + remainder == gross * rate + carry` for every gross up to
+`type(uint128).max` and every carry, so no fraction is created or destroyed, and that the remainder
+always stays below one whole unit. A nonzero executed gross too small to fund a whole unit does not
+quietly accrue nothing — it reverts; see the quantum rows below.
 
 ## Carried-remainder conformance
 
@@ -81,7 +84,10 @@ The mandatory charge is accrued on a carried **numerator**, not a per-swap floor
 platform and project entitlements are accrued independently rather than by splitting one rounded
 total. These tests exist because flooring the combined rate once per swap destroys any entitlement
 worth less than a wei — a thousand 499-wei swaps would pay the platform nothing while the identical
-aggregate volume owes it 499 wei, and splitting an already-floored total cannot recover it.
+aggregate volume owes it 499 wei, and splitting an already-floored total cannot recover it. The fee
+quantum now rejects a 499-wei gross outright, but flooring destroys a fraction at every magnitude and
+not only below the quantum, so the executable regression sits one step above it and recovers the
+identical 499 units.
 
 | Area | Cases |
 | --- | --- |
@@ -149,7 +155,7 @@ the partial-fill failure case. The numbers in the proposal are the numbers the t
 | `missing-zero-check` on `_launchWallet` | Low | (resolved) | The constructor rejects the zero address. |
 | `reentrancy-benign` / `reentrancy-events` | Low | `PoolRentHook._afterSwap`, `_donateRent` | The only external callee is the immutable PoolManager, reached from inside its own callback while its lock is held, and WETH9, which has no callback. No untrusted contract can reenter. Covered by the stateful invariant suite, which asserts solvency after every generated sequence. |
 | `uninitialized-local` | Medium | (resolved) | Both locals are now explicitly initialised to zero. |
-| inline assembly | — | (removed) | The hook originally carried the `beforeSwap` charge into `afterSwap` through two `TSTORE`/`TLOAD` helpers. Solidity 0.8.26 has no language-level transient binding, and inline assembly forces an isolated maintainer review before intake, so they were replaced with two plain private storage slots that are written and cleared inside a single swap. All 181 tests pass unchanged. |
+| inline assembly | — | (removed) | The hook originally carried the `beforeSwap` charge into `afterSwap` through two `TSTORE`/`TLOAD` helpers. Solidity 0.8.26 has no language-level transient binding, and inline assembly forces an isolated maintainer review before intake, so they were replaced with two plain private storage slots that are written and cleared inside a single swap. The whole suite passes unchanged. |
 | `unsafe-typecast` (forge lint) | Medium | `PoolRentHook._afterSwap`, `PoolRentMath.toInt128` | Twelve narrowing casts, all guarded by the branch they sit in or by an explicit bound. Each `int128 -> uint256` cast runs inside a `quoteDelta > 0` / `quoteDelta < 0` branch, so the sign is known; `PoolRentMath.toInt128` compares against `type(int128).max` and reverts before casting. The fuzz suite drives these paths across the full magnitude range at 1000 runs per property. |
 | `reentrancy-no-eth` | Medium | `PoolRentHook._afterSwap` | The only external callees are the immutable PoolManager, reached from inside its own callback while its lock is held, and the quote ERC-20. `test/Adversarial.t.sol` drives a reentrant quote token against every value-moving path and asserts the final state matches a non-reentrant sequence exactly. |
 | low-level `call` in tests | — | `test/Adversarial.t.sol`, `test/Auction.t.sol`, `test/Fee.t.sol` | Test-only, and the only way to make the assertion at all. Proving that an *absent* function is unreachable cannot be written as a typed call — it would not compile — and proving that a rejected call returned a particular error requires reading the returned selector rather than letting the revert propagate. Every such call is a negative-authorization probe against the hook, carries a one-line reason at the call site, and asserts a revert. No contract under `src/` contains a low-level call. |

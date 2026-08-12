@@ -1,7 +1,7 @@
 {
-  "$schema": "urn:programmable:v4-hook-submission:1.3.0",
+  "$schema": "urn:programmable:v4-hook-submission:1.5.0",
   "schemaVersion": 1,
-  "standardVersion": "1.3.0",
+  "standardVersion": "1.5.0",
   "stage": "prototype",
   "model": {
     "id": "poolrent",
@@ -16,6 +16,11 @@
     "contact": "egorivaschenko77@gmail.com",
     "beneficiary": "0xF3B025ed707A50704f93658CA10797230AaFbC37",
     "licenseDeclaration": "MIT. Every file declared in this submission carries SPDX-License-Identifier: MIT and the repository ships the matching LICENSE file."
+  },
+  "builderTemplate": {
+    "schemaVersion": "1.0.0",
+    "source": "manual",
+    "templateSelection": null
   },
   "publicMetadata": {
     "project": {
@@ -37,6 +42,14 @@
       "metadataMutable": false,
       "metadataOwner": null
     },
+    "localDiscoveryTags": [
+      "dynamic-fee",
+      "fee-auction",
+      "liquidity-providers",
+      "lvr",
+      "mev-internalization",
+      "uniswap-v4-hook"
+    ],
     "claimedAffiliations": [],
     "providerPresentations": []
   },
@@ -111,7 +124,7 @@
       "actor": "Any trader through any router. No allowlist, presale, cooldown or first-buyer privilege exists, and the auction may still be vacant at that point.",
       "valueFlow": "An ordinary v4 swap on the canonical PoolKey: the stored 3000 default LP fee applies while the auction is vacant, and the 2000 hundredths-of-a-bip hook charge is taken on the executed gross WETH amount.",
       "custody": "Only the hook charge stays behind, as a claimable liability inside the hook; the trader keeps everything else.",
-      "failure": "Ordinary Uniswap v4 revert paths apply. On the two quadrants charged in beforeSwap a partial fill reverts with PartialFillRejected instead of charging volume the pool never executed.",
+      "failure": "Ordinary Uniswap v4 revert paths apply. On the two quadrants charged in beforeSwap a partial fill reverts with PartialFillRejected instead of charging volume the pool never executed. A nonzero executed gross below the 1000-unit fee quantum reverts with GrossBelowFeeQuantum.",
       "event": "Swap is emitted by PoolManager and FeeAccrued records each accrued liability.",
       "notApplicableReason": null
     },
@@ -188,7 +201,7 @@
   },
   "programmableFee": {
     "policyId": "programmable-volume-fee-v1",
-    "policyVersion": "1.0.0",
+    "policyVersion": "1.1.0",
     "poolScope": "canonical-launch-pool-key",
     "rates": {
       "unit": "hundredths-of-bip",
@@ -242,6 +255,11 @@
         "owner"
       ],
       "crossPoolNetting": false,
+      "roundingPolicy": "cumulative-independent-platform-project-remainders",
+      "remainderScope": "canonical-pool-lifetime",
+      "claimResetsRemainders": false,
+      "minimumGrossQuoteUnits": 1000,
+      "fragmentationResistant": true,
       "valueFlowId": "programmable-volume-fee-accrual",
       "collectionEvent": "FeeAccrued(bytes32 indexed poolId,address indexed currency,address indexed beneficiary,uint256 amount)",
       "claimEvent": "FeeClaimed(bytes32 indexed poolId,address indexed currency,address indexed beneficiary,address to,uint256 amount)"
@@ -446,10 +464,10 @@
           "finalCallerDeltaEquation": "pool-manager-swap-delta-minus-hook-delta",
           "specifiedDeltaCanConsumeEntireAmount": false,
           "zeroAmmLeg": "forbidden",
-          "rounding": "beforeSwap returns an exact zero delta on this quadrant, so nothing is accrued or carried here. The quote asset is the unspecified currency and both entitlements are accrued from the executed gross in afterSwap under the post-action policy.",
+          "rounding": "beforeSwap returns an exact zero delta on this quadrant, so nothing is accrued or carried here. The quote asset is the unspecified currency and both entitlements are accrued from the executed gross in afterSwap under the post-action policy. A nonzero executed gross below MIN_GROSS_QUOTE_UNITS, the 1000-unit fee quantum, reverts atomically with GrossBelowFeeQuantum before anything is accrued or booked.",
           "partialFillRule": "beforeSwap prices nothing on this quadrant, so a price-limited or partially filled swap simply produces a smaller executed output and the afterSwap charge follows that executed amount exactly.",
           "slippageInvariant": "The router's minimum output is applied to the final caller delta after the afterSwap charge, never to a pre-charge quote, because the beforeSwap delta is exactly zero here.",
-          "failureRule": "A foreign PoolId reverts with UnexpectedPool. No other condition in this callback can fail on this quadrant, and a zero specified amount produces a zero delta."
+          "failureRule": "A foreign PoolId reverts with UnexpectedPool. An executed gross that is nonzero but below the 1000-unit quantum reverts with GrossBelowFeeQuantum in afterSwap. Nothing else in this callback can fail on this quadrant, and a zero specified amount produces a zero delta."
         },
         "zeroForOneExactOutput": {
           "supported": true,
@@ -509,10 +527,10 @@
           "finalCallerDeltaEquation": "pool-manager-swap-delta-minus-hook-delta",
           "specifiedDeltaCanConsumeEntireAmount": false,
           "zeroAmmLeg": "forbidden",
-          "rounding": "The gross is solved so the trader receives exactly the requested net after the charge measured on that gross; the solve is bounded and reverts with ChargeNotConverged rather than looping. Each entitlement is accrued directly from the executed gross against its own persisted remainder: numerator = executedGross * rate + carry, amount = numerator / 1000000, carry = numerator - amount * 1000000, at rate 1000 for the platform and 1000 for the project, independently rather than by splitting one rounded total. A charge can never consume the whole executed amount; a unit withheld by that bound is returned to the carry, project side first, so the mandatory platform entitlement is the last thing ever reduced.",
+          "rounding": "The gross is solved so the trader receives exactly the requested net after the charge measured on that gross; the solve is bounded and reverts with ChargeNotConverged rather than looping. Each entitlement is accrued from the executed gross against its own persisted remainder by the carried-numerator rule, at rate 1000 for the platform and 1000 for the project, independently rather than by splitting one rounded total. The 1000-unit quantum is applied to that solved gross rather than to the requested net, so a requested net of 999 grosses to 1001 and is accepted while any solved gross below 1000 reverts with GrossBelowFeeQuantum. The charge stays strictly below the executed amount; that bound is unreachable once the quantum holds and is kept as defence in depth.",
           "partialFillRule": "The hook records the gross amount it expects the pool to execute and compares it against the executed currency1 amount in afterSwap. Any difference reverts with PartialFillRejected rather than charging the trader for volume the pool never executed.",
           "slippageInvariant": "The trader receives exactly the requested net output, so a minimum-output bound is unaffected. The maximum-input bound is applied by the router to the final caller delta after the charge has moved the executed gross amount.",
-          "failureRule": "A foreign PoolId reverts with UnexpectedPool, a charge that does not fit in int128 reverts with AmountTooLarge, and a mismatch between the priced and executed amount reverts with PartialFillRejected. A zero requested output produces a zero charge and no balance."
+          "failureRule": "A foreign PoolId reverts with UnexpectedPool, a charge that does not fit in int128 reverts with AmountTooLarge, and a mismatch between the priced and executed amount reverts with PartialFillRejected. A solved gross below the 1000-unit quantum reverts with GrossBelowFeeQuantum. A zero requested output produces a zero charge and no balance."
         },
         "oneForZeroExactInput": {
           "supported": true,
@@ -572,10 +590,10 @@
           "finalCallerDeltaEquation": "pool-manager-swap-delta-minus-hook-delta",
           "specifiedDeltaCanConsumeEntireAmount": false,
           "zeroAmmLeg": "forbidden",
-          "rounding": "The charge is carved out of the specified gross and is explicitly bounded to that amount minus one base unit so a residual AMM leg always exists. Each entitlement is accrued directly from the executed gross against its own persisted remainder: numerator = executedGross * rate + carry, amount = numerator / 1000000, carry = numerator - amount * 1000000, at rate 1000 for the platform and 1000 for the project, independently rather than by splitting one rounded total. A charge can never consume the whole executed amount; a unit withheld by that bound is returned to the carry, project side first, so the mandatory platform entitlement is the last thing ever reduced.",
+          "rounding": "The charge is carved out of the specified gross and is explicitly bounded to that amount minus one base unit so a residual AMM leg always exists. Each entitlement is accrued from the executed gross against its own persisted remainder by the carried-numerator rule, at rate 1000 for the platform and 1000 for the project, independently rather than by splitting one rounded total. A nonzero specified gross below the 1000-unit quantum reverts with GrossBelowFeeQuantum in beforeSwap, before any carry is written. The one-base-unit bound is unreachable once the quantum holds and is kept as defence in depth.",
           "partialFillRule": "The hook records the residual it expects the pool to execute and compares it against the executed currency1 amount in afterSwap. Any difference reverts with PartialFillRejected rather than charging the trader for volume the pool never executed.",
           "slippageInvariant": "The trader's currency1 outlay is exactly the amount it specified, and the router's minimum currency0 output is applied to the final caller delta after the charge has reduced the residual the pool swaps.",
-          "failureRule": "A foreign PoolId reverts with UnexpectedPool, a charge that does not fit in int128 reverts with AmountTooLarge, and a mismatch between the priced and executed residual reverts with PartialFillRejected. A zero specified amount produces a zero charge and no balance."
+          "failureRule": "A foreign PoolId reverts with UnexpectedPool, a charge that does not fit in int128 reverts with AmountTooLarge, and a mismatch between the priced and executed residual reverts with PartialFillRejected. A nonzero specified gross below the 1000-unit quantum reverts with GrossBelowFeeQuantum. A zero specified amount produces a zero charge and no balance."
         },
         "oneForZeroExactOutput": {
           "supported": true,
@@ -606,10 +624,10 @@
           "finalCallerDeltaEquation": "pool-manager-swap-delta-minus-hook-delta",
           "specifiedDeltaCanConsumeEntireAmount": false,
           "zeroAmmLeg": "forbidden",
-          "rounding": "beforeSwap returns an exact zero delta on this quadrant, so nothing is accrued or carried here. The quote asset is the unspecified currency and both entitlements are accrued from the executed gross in afterSwap under the post-action policy.",
+          "rounding": "beforeSwap returns an exact zero delta on this quadrant, so nothing is accrued or carried here. The quote asset is the unspecified currency and both entitlements are accrued from the executed gross in afterSwap under the post-action policy. A nonzero executed gross below MIN_GROSS_QUOTE_UNITS, the 1000-unit fee quantum, reverts atomically with GrossBelowFeeQuantum before anything is accrued or booked.",
           "partialFillRule": "beforeSwap prices nothing on this quadrant, so a price-limited or partially filled swap simply produces a smaller executed input and the afterSwap charge follows that executed amount exactly.",
           "slippageInvariant": "The router's maximum input is applied to the final caller delta after the afterSwap charge, never to a pre-charge quote, because the beforeSwap delta is exactly zero here.",
-          "failureRule": "A foreign PoolId reverts with UnexpectedPool. No other condition in this callback can fail on this quadrant, and a zero specified amount produces a zero delta."
+          "failureRule": "A foreign PoolId reverts with UnexpectedPool. An executed gross that is nonzero but below the 1000-unit quantum reverts with GrossBelowFeeQuantum in afterSwap. Nothing else in this callback can fail on this quadrant, and a zero specified amount produces a zero delta."
         }
       },
       "executionEvent": "FeeAccrued(bytes32 indexed poolId,address indexed currency,address indexed beneficiary,uint256 amount)"
@@ -665,8 +683,8 @@
           "currency0": null,
           "currency1": null
         },
-        "bounds": "The returned delta is never negative, never exceeds the two entitlements measured on the executed gross currency1 amount, and can never consume the whole executed amount because the charge is explicitly capped at the executed amount minus one base unit, with any withheld unit returned to the carry.",
-        "rounding": "Each entitlement is accrued directly from the executed gross against its own persisted remainder: numerator = executedGross * rate + carry, amount = numerator / 1000000, carry = numerator - amount * 1000000, at rate 1000 for the platform and 1000 for the project, independently rather than by splitting one rounded total. Flooring the combined rate once per swap would destroy any entitlement worth less than a wei, so carrying the numerator makes charging a volume as one swap and as a thousand swaps agree to the wei. A charge can never consume the whole executed amount; a unit withheld by that bound is returned to the carry, project side first, so the mandatory platform entitlement is the last thing ever reduced. Every uint256 to int128 conversion is checked and reverts with AmountTooLarge.",
+        "bounds": "The returned delta is never negative, never exceeds the two entitlements measured on the executed gross currency1 amount, and can never consume the whole executed amount because the charge is explicitly capped at the executed amount minus one base unit, with any withheld unit returned to the carry. Once the 1000-unit quantum is enforced that cap is unreachable, because the combined 20 bps charge reaches the executed amount only at a gross of two units or less, and it is kept as defence in depth.",
+        "rounding": "Each entitlement is accrued directly from the executed gross against its own persisted remainder: numerator = executedGross * rate + carry, amount = numerator / 1000000, carry = numerator - amount * 1000000, at rate 1000 for the platform and 1000 for the project, independently rather than by splitting one rounded total. Flooring the combined rate once per swap would destroy any entitlement worth less than a wei, so carrying the numerator makes charging a volume as one swap and as a thousand swaps agree to the wei. A nonzero executed gross below the 1000-unit quantum reverts with GrossBelowFeeQuantum, so an accepted swap can always fund each whole unit its carries realize. Every uint256 to int128 conversion is checked and reverts with AmountTooLarge.",
         "slippageOrMinimums": "The router applies its minimum output or maximum input to the final caller delta after the hook charge, not to a pre-charge quote. The hook adds no bound of its own and consumes no deadline or signature.",
         "failureRule": "A zero executed amount returns zero and creates no balance and no event. A foreign PoolId, a failed take, a failed ledger write or a conversion overflow reverts the whole swap before unlock ends. A donation that cannot land is skipped and never reverts the swap.",
         "executionEvent": "FeeAccrued(bytes32 indexed poolId,address indexed currency,address indexed beneficiary,uint256 amount)"
@@ -766,7 +784,7 @@
       "asset": "WETH9, the canonical pool's quote asset",
       "from": "the caller's swap delta on the canonical PoolKey",
       "to": "claimable balances inside the hook for the platform and the manager",
-      "amountRule": "1000 hundredths of a bip of the executed gross WETH9 amount to the platform and 1000 to the project, each accrued independently against its own persisted numerator remainder so no entitlement is lost to per-swap flooring, and always strictly below the executed amount.",
+      "amountRule": "1000 hundredths of a bip of the executed gross WETH9 amount to the platform and 1000 to the project, each accrued independently against its own persisted numerator remainder so no entitlement is lost to per-swap flooring, always strictly below the executed amount, and never charged at all on a nonzero gross below the 1000-unit quantum, which reverts.",
       "settlement": "The charge is returned as a beforeSwap specified delta or an afterSwap unspecified delta, booked to the two balances with both carries committed, and then taken in full from PoolManager inside the same afterSwap callback.",
       "failure": "A zero executed amount accrues nothing. Any arithmetic, take or ledger failure reverts the whole swap and leaves no charge and no balance behind."
     },
@@ -1060,6 +1078,16 @@
       "permit2Mode": null,
       "finalSwapDeltaValidated": null
     },
+    "sdkSafetyProfile": {
+      "packageRootImportsOnly": null,
+      "hookedQuoteSource": null,
+      "localHookedPoolMathDisabled": null,
+      "hookDataParity": null,
+      "multiHopHookDataMode": null,
+      "perHopPriceBounds": null,
+      "slippageSemantics": null,
+      "deprecatedLiquidityActionsDisabled": null
+    },
     "appSourcePaths": [],
     "integrationTestPaths": [],
     "quoteExecutionParity": null,
@@ -1234,7 +1262,7 @@
           "summary": "This surface moves the hook-owned volume charge into two claimable balances, moves rent from a manager's deposit to the pool's in-range positions, and moves WETH9 out again on claims and withdrawals. The LP fee itself is never touched by the hook.",
           "controls": [
             "Keep the charge on the executed gross quote-side amount and never on the requested amount.",
-            "Accrue the platform and project entitlements independently against their own persisted numerator remainders, so neither is lost to per-swap flooring and a claim never resets a carry.",
+            "Accrue the platform and project entitlements independently against their own persisted numerator remainders, so neither is lost to per-swap flooring and a claim never resets a carry, and reject a nonzero executed gross below the 1000-unit quantum.",
             "Skip a donation that cannot land instead of reverting the swap, and never let rent be donated twice."
           ],
           "evidenceRefs": []
@@ -1847,7 +1875,7 @@
     },
     "rationales": {
       "complexity": "One hook coordinates four things at once: pool admission, a quadrant-dependent charge that uses both the before and the after swap return delta, a rent auction with lazy accrual and eviction, and a donation settled inside the same callback. Three contracts and one arithmetic library are in scope.",
-      "customMath": "The arithmetic is bounded rate math rather than new pricing: two independent entitlements accrued from the executed gross, each carrying its numerator remainder across swaps so nothing is lost to per-swap flooring, a bounded solve for the exact-output gross that fails closed, and a per-block rent charge capped at the remaining deposit. There is no new pool invariant.",
+      "customMath": "The arithmetic is bounded rate math rather than new pricing: two independent entitlements accrued from the executed gross, each carrying its numerator remainder across swaps so nothing is lost to per-swap flooring, a bounded solve for the exact-output gross that fails closed, a minimum executed gross below which a nonzero swap reverts instead of accruing, and a per-block rent charge capped at the remaining deposit. There is no new pool invariant.",
       "externalDependencies": "Exactly two deployed contracts are called at runtime, both immutable and both fixed as constructor immutables: the Uniswap v4 PoolManager and the WETH9 quote asset. No feed, service, bridge or scheduler is consumed.",
       "externalLiquidity": "The hook owns no position, no share and no third-party inventory, and it never counts canonical pool reserves as backing for anything it owes. Its only asset balance is the quote asset it carries for its own three declared namespaces.",
       "valueAtRisk": "The hook carries three kinds of value for other people at once: auction deposits owned by their depositors, rent owed to the pool's in-range positions, and claimable volume-fee balances including the mandatory platform balance. A defect in the accounting could strand or misattribute any of them.",
@@ -1887,7 +1915,9 @@
     "WETH9 is declared as the pool's quote asset in assets[] and as an external-call target, not as an onchain protocol dependency record. It is absent from every deployment reference the standard ships, so no deploymentRecordId can be cited for it. Its address and the runtime hash observed at the pinned mainnet block are recorded in evidence/deployment-weth9-ethereum.json.",
     "The dependency baseline is model-specific-pinned rather than programmable-tested. The pins are the programmable-tested set unchanged, plus the solmate revision that Uniswap v4 Core's own ProtocolFees requires transitively. That choice adds the model-specific-dependency-review and model-specific-architecture-review candidate gates.",
     "The 20 bps total is split as two independent 10 bps entitlements, the platform's and the project's, each accrued from the executed gross against its own persisted numerator remainder. The rates are constants, so a maintainer-preferred total or split is a constant change plus a re-mined salt rather than a redesign.",
-    "Rounding carries the numerator rather than the quotient, so charging a given volume as one swap and as a thousand tiny swaps agree to the wei and no entitlement rounds away. The two remainders, platformFeeCarry and projectFeeCarry, are public, are never reset by a claim, and are covered by the solvency inequality."
+    "Rounding carries the numerator rather than the quotient, so charging a given volume as one swap and as a thousand tiny swaps agree to the wei and no entitlement rounds away. The two remainders, platformFeeCarry and projectFeeCarry, are public, are never reset by a claim, and are covered by the solvency inequality. A nonzero executed gross below 1000 quote units reverts atomically, so no accepted swap is too small to fund the whole units its carries realize.",
+    "The charge is bounded strictly below the executed amount and any unit that bound withholds returns to the carry, project side first. With the 1000-unit quantum in force that bound is unreachable on chain, because the combined 20 bps charge reaches the executed amount only at a gross of two units or less; it is retained as defence in depth.",
+    "On the two quadrants where the trader's quote amount is the specified output, the quantum is applied to the solved executed gross rather than to the requested net, so a requested net of 999 units grosses to 1001 and is accepted."
   ],
   "unresolved": []
 }

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "standardVersion": "1.3.0",
-  "submissionHash": "sha256:8a4c943c63eff6464219f6b487fd846b45662d4053705f9b2c5b0ef7fbde0115",
+  "standardVersion": "1.5.0",
+  "submissionHash": "sha256:deff25141cd67e4ee0546dc8ef43c21d8fa515c42778a869cfedd131e889b3fd",
   "closureMethod": "declared-bytes-and-resolved-solidity-and-javascript-imports-v10",
   "closure": {
     "status": "complete",
@@ -521,8 +521,8 @@
     {
       "path": "src/PoolRentHook.sol",
       "kind": "source-entry",
-      "bytes": 33052,
-      "sha256": "3b58fbcf30ba3a523c9731cae611860c790422522fa0277695b2380bcb60fe99"
+      "bytes": 33903,
+      "sha256": "32cd7dc7481976fc83066c2c60fd3cb14cc90dc8d79b086c2fe8c8347cbae78e"
     },
     {
       "path": "src/PoolRentLauncher.sol",
@@ -545,20 +545,20 @@
     {
       "path": "submissions/poolrent/EVIDENCE.md",
       "kind": "package:EVIDENCE.md",
-      "bytes": 17195,
-      "sha256": "adcbab4a7284b1d46dbe48ba5c5344dfdd58e81225910942f8118e098a8255a3"
+      "bytes": 18839,
+      "sha256": "def5f2f03cf217ed9652857ef57face544f426274a5ad50c79c5a2d5ff366134"
     },
     {
       "path": "submissions/poolrent/PROPOSAL.md",
       "kind": "package:PROPOSAL.md",
-      "bytes": 30761,
-      "sha256": "7f7b552b44566149196885939c634896938c9607c0fc86720c3cec1969675471"
+      "bytes": 31498,
+      "sha256": "06776f7ec5b23a1ba9e30270814d95b097ea4c58b9eca107b53698817e3d29be"
     },
     {
       "path": "submissions/poolrent/TEST_PLAN.md",
       "kind": "package:TEST_PLAN.md",
-      "bytes": 19175,
-      "sha256": "13007d1eb2474226e3b98ac3e0c4351b3ba6ee0950c903b8d3ce9c8f096a7e95"
+      "bytes": 20337,
+      "sha256": "6c8c45907382eba929c3d21a76cd27272a710bf09ece8b94abf15f920c883b91"
     },
     {
       "path": "submissions/poolrent/THREAT_MODEL.md",
@@ -569,8 +569,8 @@
     {
       "path": "submissions/poolrent/compatibility-report.json",
       "kind": "package:compatibility-report.json",
-      "bytes": 10036,
-      "sha256": "fc455469d4cba1592cabb17c85e932405193826a1a8849b0e0f6f8a462e5c675"
+      "bytes": 10818,
+      "sha256": "e2a7c6d14b63249234374eeee8a221de10beac3fd653a69c380775329824272c"
     },
     {
       "path": "submissions/poolrent/evidence/dependency-lock.json",
@@ -594,25 +594,25 @@
       "path": "submissions/poolrent/evidence/slither-report.txt",
       "kind": "gate-evidence:static-analysis",
       "bytes": 5821,
-      "sha256": "969056c6448df326af4283a2b58d47c6007898d3a106b6143650ae4862c5e00e"
+      "sha256": "df218295a83767b9d30ed41e81950e106589a31266f77a603bc6928c5a266e1b"
     },
     {
       "path": "submissions/poolrent/evidence/test-evidence.json",
       "kind": "test-evidence",
-      "bytes": 7714,
-      "sha256": "6a61c45c8a1c5a05a5d230cfa531ab7393d097ad2435d12efd85c4671195e352"
+      "bytes": 8244,
+      "sha256": "58a4897124b5bc909a926ee227f6acaab599da601ac3d76447eff354bf854bb7"
     },
     {
       "path": "submissions/poolrent/launch.json",
       "kind": "specification",
       "bytes": 6881,
-      "sha256": "27680feb6dbeca206dcd0906b198c16fa91b48ca5251b0f691b5207b5d007fe3"
+      "sha256": "023d2643de5ef562781ba4b01997f4feb4b267acfe88d8997444ed21ce1b7866"
     },
     {
       "path": "submissions/poolrent/submission.json",
       "kind": "package:submission.json",
-      "bytes": 119015,
-      "sha256": "be4c5541d10f28a29f5eaed6bfe741daa5334f658d1535dc7660fb24d069f0a2"
+      "bytes": 121795,
+      "sha256": "69e56fbfbb8fdcb8e435df50f82e2ef2cffc9f0c658c9019a1a547e08fb7b7f3"
     },
     {
       "path": "test/Adversarial.t.sol",
@@ -629,8 +629,8 @@
     {
       "path": "test/Fee.t.sol",
       "kind": "test-entry",
-      "bytes": 65589,
-      "sha256": "ae4232026693269891b4329ae9c5a40f7f95718c3da3f3a063bb5d2befb29822"
+      "bytes": 69002,
+      "sha256": "1d4009c53f7496bc5d6aa0d058cea7cb9544f9f1e49c42493e5f2ca4fb91f6bd"
     },
     {
       "path": "test/Fork.t.sol",
@@ -641,14 +641,14 @@
     {
       "path": "test/Fuzz.t.sol",
       "kind": "test-entry",
-      "bytes": 33742,
-      "sha256": "94e44429fa4367937afcf306ec13060ba1afbd9401f8c0057f50e6071788dfdd"
+      "bytes": 38159,
+      "sha256": "324a6734526f1f57d26ea8662f6ac5d02fbb1521f8a3a152fbc0b73e8200c47e"
     },
     {
       "path": "test/Invariants.t.sol",
       "kind": "test-entry",
-      "bytes": 24515,
-      "sha256": "a7fc22d00c83ff889dee2b51dbbb0e19dd87d693084cd591d52661b865c61cee"
+      "bytes": 27393,
+      "sha256": "b8a57273cd07f2f6a47b7f598d319c053c74c8a01ce0f792b1e93fe7c8e6551b"
     },
     {
       "path": "test/Launch.t.sol",
@@ -665,8 +665,8 @@
     {
       "path": "test/handlers/PoolRentHandler.sol",
       "kind": "test-entry",
-      "bytes": 17604,
-      "sha256": "85736696f4cfe56040480791a4f3c5c4092751184c9c8d15a126cc4c9b0212fd"
+      "bytes": 18847,
+      "sha256": "0c87e84edfe0230e5305012523655658dc65a996b3c6fb0da4ad05105443c8b1"
     },
     {
       "path": "test/utils/PoolRentFixture.sol",
@@ -2771,6 +2771,14 @@
     },
     {
       "specifier": "@uniswap/v4-core/src/libraries/TickMath.sol",
+      "importer": "test/Invariants.t.sol",
+      "remappingPrefix": "@uniswap/v4-core/",
+      "remappingTarget": "lib/v4-core/",
+      "resolvedPath": "lib/v4-core/src/libraries/TickMath.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
+      "specifier": "@uniswap/v4-core/src/libraries/TickMath.sol",
       "importer": "test/handlers/PoolRentHandler.sol",
       "remappingPrefix": "@uniswap/v4-core/",
       "remappingTarget": "lib/v4-core/",
@@ -2828,6 +2836,14 @@
     {
       "specifier": "@uniswap/v4-core/src/test/PoolSwapTest.sol",
       "importer": "test/Fuzz.t.sol",
+      "remappingPrefix": "@uniswap/v4-core/",
+      "remappingTarget": "lib/v4-core/",
+      "resolvedPath": "lib/v4-core/src/test/PoolSwapTest.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
+      "specifier": "@uniswap/v4-core/src/test/PoolSwapTest.sol",
+      "importer": "test/Invariants.t.sol",
       "remappingPrefix": "@uniswap/v4-core/",
       "remappingTarget": "lib/v4-core/",
       "resolvedPath": "lib/v4-core/src/test/PoolSwapTest.sol",
@@ -2908,6 +2924,14 @@
     {
       "specifier": "@uniswap/v4-core/src/types/BalanceDelta.sol",
       "importer": "test/Fuzz.t.sol",
+      "remappingPrefix": "@uniswap/v4-core/",
+      "remappingTarget": "lib/v4-core/",
+      "resolvedPath": "lib/v4-core/src/types/BalanceDelta.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
+      "specifier": "@uniswap/v4-core/src/types/BalanceDelta.sol",
+      "importer": "test/Invariants.t.sol",
       "remappingPrefix": "@uniswap/v4-core/",
       "remappingTarget": "lib/v4-core/",
       "resolvedPath": "lib/v4-core/src/types/BalanceDelta.sol",
@@ -3211,6 +3235,14 @@
     },
     {
       "specifier": "@uniswap/v4-core/src/types/PoolOperation.sol",
+      "importer": "test/Invariants.t.sol",
+      "remappingPrefix": "@uniswap/v4-core/",
+      "remappingTarget": "lib/v4-core/",
+      "resolvedPath": "lib/v4-core/src/types/PoolOperation.sol",
+      "kind": "solidity-dependency-import"
+    },
+    {
+      "specifier": "@uniswap/v4-core/src/types/PoolOperation.sol",
       "importer": "test/handlers/PoolRentHandler.sol",
       "remappingPrefix": "@uniswap/v4-core/",
       "remappingTarget": "lib/v4-core/",
@@ -3347,5 +3379,5 @@
     }
   ],
   "javascriptImportResolutions": [],
-  "reviewTargetHash": "sha256:bc83715d3a23b84a66b779c1312a4b282c9daad128dbcbfe19f3ae99b0cd32c5"
+  "reviewTargetHash": "sha256:aed9f37a00b131d09fa0d896611f3d7a956b53bda631f8bc0b9df2bb989ec28e"
 }

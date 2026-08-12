@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "attestation": "builder-declared-untrusted",
   "modelId": "poolrent",
-  "commit": "49ff30b1142580ae0c687c92e1310a14a548c5e1",
+  "commit": "f7e767c884c2263f55f412e628c8450b7967f4b6",
   "toolVersions": {
     "forge": "1.7.1",
     "solc": "0.8.26",
@@ -219,7 +219,7 @@
       "command": "forge test --match-contract FeeTest",
       "status": "passed",
       "result": {
-        "note": "Carried-numerator accrual. The reported scenario is pinned verbatim: 1,000 swaps of 499 wei gross pay the immutable owner exactly 499 wei, with the per-swap floor asserted to be zero first. Conservation is asserted as an equality at the library, hook and stateful-invariant levels."
+        "note": "Carried-numerator accrual. Conservation is asserted as an equality at three levels: as pure arithmetic in testFuzz_conservation_slicesEqualTheWhole, over every slice size from 0 to 1e24 and every slice count to 64, which covers sub-quantum slices the hook itself can no longer execute; through the hook on all four quadrants; and across 16,384 stateful calls. The concrete reported scenario is pinned one step above the fee quantum rather than at 499 wei, because a 499-unit gross now reverts atomically; see the fee-quantum check for the pinned numbers and the recovered 499."
       }
     },
     {

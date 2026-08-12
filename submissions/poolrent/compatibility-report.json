@@ -1,15 +1,16 @@
 {
-  "reportVersion": 2,
-  "standardVersion": "1.3.0",
-  "submissionHash": "sha256:8a4c943c63eff6464219f6b487fd846b45662d4053705f9b2c5b0ef7fbde0115",
+  "reportVersion": 3,
+  "standardVersion": "1.5.0",
+  "submissionHash": "sha256:deff25141cd67e4ee0546dc8ef43c21d8fa515c42778a869cfedd131e889b3fd",
   "toolchain": {
-    "validatorSha256": "sha256:d3b4db147fbb955d0ecdff0d5d3a55d25a55a38bb72b33efe535d9c80c286318",
-    "schemaSha256": "sha256:b3a67753b286a35a49d88a85e1bdaec50f19d86b241145901e2dd24327fd515a",
+    "validatorSha256": "sha256:2b9befc32be4b3a8267c9c9c4fe8cb36dcc53aef518f7c8216c0edda06732d61",
+    "schemaSha256": "sha256:67e839128136fbffa8d9d6551a75c1988e55a3a74a0827359826e1449201cc45",
     "deploymentSnapshotSha256": "sha256:35e36a2837a70688104cd6a4aae3da4e1401429226c8ca15d036db4cf2195d2c",
     "officialDeploymentReferenceSha256": "sha256:ef7e12bf1312edf374749bfeb18ac41cb83623856fbfd39892606579b7119fd6",
-    "policyBundleSha256": "sha256:1c623966ae90b671ff423329c14f1dbfb0061a80f6cd33b25e6671ed98c61c3d"
+    "policyBundleSha256": "sha256:70e4fc0edf0d1227ea609f72fbac746993f223e139260fb9fc8f7a5198862981"
   },
   "decision": "PROTOTYPE_READY",
+  "decisionCompatibility": "LEGACY_COMPATIBILITY_ONLY",
   "hookPermissionMask": "0x30cc",
   "risk": {
     "score": 14,
@@ -263,7 +264,23 @@
       "reason": "Deployment claims require runtime, source and configuration evidence."
     }
   ],
-  "disclaimer": "This is a structural and rule-based compatibility preflight. Free-text claims still require independent semantic review. PROTOTYPE_READY means only that an isolated prototype may begin; it is not acceptance, an audit, a safety guarantee, deployment evidence, routing approval or proof of availability.",
+  "readiness": {
+    "design": "DESIGN_REVIEW_REQUIRED",
+    "implementation": "STRUCTURALLY_COMPLETE",
+    "designBlockerCodes": [],
+    "implementationBlockerCodes": [],
+    "architectureReviewGateIds": [
+      "model-specific-architecture-review"
+    ]
+  },
+  "intake": {
+    "state": "STRUCTURE_CHECKED",
+    "assurance": "static-structure-and-builder-declared-evidence-only"
+  },
+  "sandboxVerification": {
+    "state": "NOT_RUN"
+  },
+  "disclaimer": "This is a structural and rule-based compatibility preflight. The top-level decision is retained for one migration release as compatibility-only output and is not an assurance level. Free-text claims and builder-declared evidence require independent semantic review. readiness.design may permit isolated implementation before source exists; a clean prototype without repository closure remains IN_PROGRESS, while repository closure may report STRUCTURALLY_COMPLETE. No local state means prototype validated, sandbox rebuilt, accepted, audited, safe, deployed, route-approved or available.",
   "closure": {
     "status": "complete",
     "diagnostics": []

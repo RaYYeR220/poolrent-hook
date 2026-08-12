@@ -87,11 +87,13 @@ exact-output legs now solve for the gross that leaves the trader their exact net
 closed. A unit withheld by the "a charge may never consume the whole executed amount" bound is
 returned to the remainder, project side first, rather than dropped.
 
-The maintainer's scenario is pinned verbatim as a regression: 1,000 swaps of 499 wei gross now pay
-the platform exactly 499 wei, with `feeFromGross(499, PLATFORM_RATE) == 0` asserted first so the test
-fails loudly if per-swap flooring ever returns. Conservation is asserted as an equality — not a dust
-band — at three levels: the library over random sequences, the hook over random swap runs, and the
-stateful invariant suite over 16,384 generated calls per invariant.
+At this revision the maintainer's scenario was pinned verbatim as a regression: 1,000 swaps of 499
+wei gross paid the platform exactly 499 wei, with `feeFromGross(499, PLATFORM_RATE) == 0` asserted
+first so the test would fail loudly if per-swap flooring ever returned. Revision 3 below makes a
+499-wei gross unexecutable, so that regression was moved one step above the quantum, where it
+recovers the same 499 units. Conservation is asserted as an equality — not a dust band — at three
+levels: the library over random sequences, including sizes the hook itself now rejects; the hook over
+random swap runs; and the stateful invariant suite over 16,384 generated calls per invariant.
 
 ## Fee-quantum conformance, revision 3
 
