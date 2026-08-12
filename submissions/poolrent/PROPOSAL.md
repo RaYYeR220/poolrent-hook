@@ -206,7 +206,15 @@ and `test/Invariants.t.sol`.
   thousand 499-wei swaps would pay the platform nothing while the identical 499,000 wei of aggregate
   volume owes it 499 wei — and splitting an already-floored total cannot recover what flooring
   removed. Carrying the numerator makes charging a volume as one swap and as a thousand swaps agree
-  to the wei. The exact-output legs solve for the gross that leaves the trader exactly their net,
+  to the wei. **A nonzero executed gross below 1,000 smallest quote units reverts atomically**
+  (`MIN_GROSS_QUOTE_UNITS`, error `GrossBelowFeeQuantum`), so every accepted swap can fund each whole
+  unit its remainders realise; at this rate that boundary is exactly where each side first realises one
+  whole unit, so an accepted swap never books a zero charge. On an 18-decimal quote asset the threshold
+  is 1e-15 of a token and immaterial to real trading; an asset whose granularity made it material would
+  need a different reviewed architecture rather than a silent waiver. The quantum and the carry are
+  complementary — the quantum guarantees each accepted swap funds a whole unit, the carry conserves the
+  fraction above it, so splitting accepted volume still cannot suppress the entitlement.
+  The exact-output legs solve for the gross that leaves the trader exactly their net,
   bounded and failing closed rather than looping. A charge can never consume the whole executed
   amount; a unit withheld by that bound is returned to the carry — project side first, so the
   mandatory platform entitlement is the last thing ever reduced — rather than dropped. The remainders
@@ -259,15 +267,14 @@ All figures in WETH wei, at the declared 20 bps total with a 50/50 split.
    `997_004_991_562_331_100` WETH. Charge `= floor(997_004_991_562_331_100 × 2000 / 1_000_000)
    = 1_994_009_983_124_662`. The trader receives the remainder. The basis is what the pool executed,
    never what the trader requested.
-4. **Sub-wei entitlements aggregate exactly.** An executed gross of `499` wei owes the platform
-   `499 × 1000 = 499_000` numerator: `0` whole wei, carry `499_000`. After a third such swap the carry
-   reaches `1_497_000`, so `1` wei is paid and `497_000` carried. Over 1,000 such swaps the platform is
-   paid exactly `499` wei — the same as one swap of `499_000` wei. Flooring each swap separately pays
-   `0`, which is the conformance defect this revision corrects.
-5. **Rounding to zero, and what it leaves behind.** A swap whose executed quote amount is `499` wei
-   pays `0` whole wei now, so no liability is booked and no accrual event is emitted, and the swap
-   succeeds normally — but `499_000` of numerator is retained on each side, so the entitlement is
-   deferred rather than destroyed.
+4. **Fractional entitlements aggregate exactly.** An executed gross of `1_499` wei owes the platform
+   `1_499 × 1000 = 1_499_000` numerator: `1` whole wei paid, `499_000` carried. Over 1,000 such swaps
+   the platform is paid exactly `1_499` wei, where flooring each swap independently pays `1_000`. That
+   `499` wei difference is precisely the quantity the fee-conformance review was about, now sitting
+   above the quantum rather than below it.
+5. **Dust below the quantum is refused, not silently absorbed.** A swap whose executed quote amount
+   would be `999` wei reverts with `GrossBelowFeeQuantum`, leaving both remainders and both liabilities
+   exactly as they were. A gross of `1_000` is accepted and realises one whole wei on each side.
 6. **Value conservation over a rent cycle.** A manager deposits `10e18` and bids `1e15` per block.
    Entry charges one block immediately, so `deposits` is `10e18 - 1e15` and `pendingRent` is `1e15`.
    After 50 further blocks another `50 × 1e15 = 5e16` moves across, for `5.1e16` in total, and on

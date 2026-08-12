@@ -27,7 +27,7 @@ lifecycle proof, routing review and product availability — none of which exist
 | Compiler | solc `0.8.26+commit.8a97fa7a`, EVM Cancun, optimizer on at 1000 runs, `viaIR` off, `bytecode_hash` none, `cbor_metadata` off, `ffi` off — recorded in `evidence/dependency-lock.json`. `evidence/build-info.json` was produced by running the official compiler binary over the exact standard-JSON input Foundry emits, because Foundry 1.7.1 records the release as `0.8.26` with no commit suffix of its own |
 | Dependency closure | The `programmable-tested` baseline set unchanged, plus the one solmate revision Uniswap v4 Core's own `ProtocolFees` imports transitively — recorded as `model-specific-pinned` because the platform set is frozen and cannot carry that entry. Every library is checked into the tree at its exact pinned revision and retains its own pinned Git checkout so the lock verifies against it; no npm dependency, and no file under `src/` imports solmate |
 | Baseline cost | `model-specific-pinned` adds two candidate gates, `model-specific-dependency-review` and `model-specific-architecture-review`. Both are recorded in `gate-status.json` as maintainer-owned and not started. Stated here so a reviewer does not have to discover them |
-| Test runs | `evidence/test-evidence.json` — exact commands, counts, fuzz runs, invariant runs/depth/calls/reverts. 208 tests across nine suites at the declared commit, zero failed, zero skipped |
+| Test runs | `evidence/test-evidence.json` — exact commands, counts, fuzz runs, invariant runs/depth/calls/reverts. 214 tests across nine suites at the declared commit, zero failed, zero skipped |
 | Static analysis | `evidence/slither-report.txt` — zero high-severity findings; ten medium, three low and two informational, each with a written disposition in `TEST_PLAN.md` |
 | Fork | One suite pinned to Ethereum block `25,700,000` and one against the current head, both against the real PoolManager `0x000000000004444c5dc75cB358380D2e3dE08A90` and the real WETH9 |
 | Gas and size | `forge build --sizes` and the gas figures in `evidence/test-evidence.json`; the hook's runtime is well inside EIP-170 |
@@ -92,6 +92,28 @@ the platform exactly 499 wei, with `feeFromGross(499, PLATFORM_RATE) == 0` asser
 fails loudly if per-swap flooring ever returns. Conservation is asserted as an equality — not a dust
 band — at three levels: the library over random sequences, the hook over random swap runs, and the
 stateful invariant suite over 16,384 generated calls per invariant.
+
+## Fee-quantum conformance, revision 3
+
+The current fee kernel requires that a nonzero executed gross below 1,000 smallest quote units reverts
+atomically, so that every accepted swap can fund each whole unit its carried remainders realise. The
+hook enforces it with `MIN_GROSS_QUOTE_UNITS` and `GrossBelowFeeQuantum`, on the executed gross, in
+`beforeSwap` for the two quote-specified quadrants and in `afterSwap` for the other two. On an
+18-decimal quote asset the threshold is 1e-15 of a token.
+
+The quantum does not replace the carried remainders — the two are complementary, and both are
+required. The quantum guarantees an accepted swap funds a whole unit; the carry conserves the fraction
+above it, so splitting accepted volume still cannot suppress the entitlement. The regression that
+pinned the original review finding was moved one step above the quantum and keeps the same numbers:
+1,000 swaps of 1,499 units pay 1,499 where per-swap flooring pays 1,000, and the 499-unit difference
+the carry recovers is the quantity the review was about.
+
+**One consequence stated rather than left to be discovered.** With the quantum in force, the clamp
+that prevents a charge from consuming the whole executed amount can no longer bind on-chain: for any
+accepted gross the combined charge is far smaller. Its write-back branch in `PoolRentHook` is
+therefore unreachable in production. It is retained as defensive depth, its arithmetic is still
+covered at the library level, and its unreachability is proven by a 1,000-run fuzz property rather
+than asserted in prose. A reviewer should read that branch as deliberately redundant, not untested.
 
 ## Reproducing the deployed PoolManager
 

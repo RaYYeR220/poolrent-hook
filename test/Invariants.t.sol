@@ -4,6 +4,10 @@ pragma solidity 0.8.26;
 import {Vm} from "forge-std/Vm.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
+import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
+import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
+import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+import {PoolSwapTest} from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {PoolRentFixture} from "./utils/PoolRentFixture.sol";
@@ -25,6 +29,9 @@ contract InvariantsTest is PoolRentFixture {
 
     /// @dev Rate denominator, mirrored from `PoolRentMath` so the carry identities read plainly.
     uint256 internal constant DENOMINATOR = 1_000_000;
+
+    uint160 internal constant MIN_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
+    uint160 internal constant MAX_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
 
     PoolRentHandler internal handler;
     address[] internal actors;
@@ -140,16 +147,17 @@ contract InvariantsTest is PoolRentFixture {
         );
     }
 
-    /// @notice A carry is a numerator remainder, so it holds less than one whole unit — except for
-    ///         the whole units a clamped charge deliberately parked there, which the next swap pays
-    ///         straight back out. Only a swap ever moves either carry.
+    /// @notice A carry is a numerator remainder, so it never holds a whole unit. Only an executed
+    ///         swap moves either carry, and one never charges more than the remainders entitle it to.
+    /// @dev The clamp write-back is the only thing that could push a carry to a whole unit, and the
+    ///      fee quantum puts it out of reach — see `test_theFeeQuantumKeepsTheChargeClampUnreachable`.
     function invariant_carryBounds() public view {
         assertEq(handler.ghostChargeMismatch(), 0, "a swap charged more than the carries entitled it to");
-        assertEq(handler.ghostCarryMovedOutsideSwap(), 0, "a carry moved on something that was not a swap");
+        assertEq(handler.ghostCarryMovedOutsideSwap(), 0, "a carry moved on something that was not an executed swap");
+        assertEq(handler.lastClampedUnits(), 0, "a charge was clamped despite the fee quantum");
 
-        uint256 parked = handler.lastClampedUnits() * DENOMINATOR;
-        assertLt(hook.platformFeeCarry(), DENOMINATOR + parked, "platform carry above one whole unit");
-        assertLt(hook.projectFeeCarry(), DENOMINATOR + parked, "project carry above one whole unit");
+        assertLt(hook.platformFeeCarry(), DENOMINATOR, "platform carry holds a whole unit");
+        assertLt(hook.projectFeeCarry(), DENOMINATOR, "project carry holds a whole unit");
     }
 
     /// @notice The live LP fee never leaves the immutable bounds, and falls back with no manager.
@@ -374,10 +382,11 @@ contract InvariantsTest is PoolRentFixture {
     /// @dev The maintainer finding this arithmetic exists for. Flooring the rate on every swap makes
     ///      a long run of sub-wei legs accrue nothing at all; carrying the numerator makes the same
     ///      volume pay exactly what one aggregate swap pays.
-    function test_aThousandSubWeiSwapsAccrueTheSameAsOneAggregateSwap() public {
+    function test_aThousandFractionalSwapsAccrueTheSameAsOneAggregateSwap() public {
         uint256 legs = 1_000;
-        // 499 wei of gross quote earns 0.499 wei at 10 bps: nothing at all under a per-swap floor.
-        uint256 chunk = 499;
+        // The smallest gross the fee kernel accepts is 1_000, worth exactly one whole unit at 10 bps.
+        // 1_999 is the worst case above it: 1.999 units, of which a per-swap floor drops 0.999.
+        uint256 chunk = 2 * hook.MIN_GROSS_QUOTE_UNITS() - 1;
 
         uint256 snapshot = vm.snapshotState();
 
@@ -385,8 +394,12 @@ contract InvariantsTest is PoolRentFixture {
             _swap(trader, false, -int256(chunk));
         }
         uint256 dripped = hook.feeOwed(PROGRAMMABLE_OWNER);
-        assertEq(dripped, (chunk * legs * hook.PLATFORM_RATE()) / 1e6, "sub-wei legs did not accrue their volume");
-        assertGt(dripped, 0, "the whole entitlement rounded away");
+        assertEq(dripped, (chunk * legs * hook.PLATFORM_RATE()) / DENOMINATOR, "the legs did not accrue their volume");
+        assertGt(
+            dripped,
+            legs * ((chunk * hook.PLATFORM_RATE()) / DENOMINATOR),
+            "the carry recovered nothing a per-swap floor would have dropped"
+        );
 
         vm.revertToState(snapshot);
 
@@ -395,34 +408,49 @@ contract InvariantsTest is PoolRentFixture {
         _assertSolvent();
     }
 
-    /// @dev The one path that puts a whole unit into a carry. A charge that would consume the entire
-    ///      executed amount is clamped, and the withheld units are parked in the remainders rather
-    ///      than dropped, so the next swap pays them straight out and the volume still earns exactly
-    ///      its rate. While they are parked a carry sits at a whole unit, not below one.
-    function test_clampedChargeParksWithheldUnitsInTheCarry() public {
-        // 999 wei of gross earns 0.999 wei on each side: nothing payable, everything carried.
-        _swap(trader, false, -int256(uint256(999)));
-        assertEq(hook.platformFeeCarry(), 999_000, "platform remainder off");
-        assertEq(hook.projectFeeCarry(), 999_000, "project remainder off");
-        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), 0, "a sub-wei leg paid out");
+    /// @dev The same rule from the other side: a nonzero gross the fee kernel will not accept is
+    ///      rejected atomically on the quote-unspecified legs too, where the gross is only known
+    ///      after execution. A token-side input this small buys well under a quantum of quote.
+    function test_belowQuantumGrossOnTheUnspecifiedLegAlsoReverts() public {
+        uint256 dust = hook.MIN_GROSS_QUOTE_UNITS() / 2;
+        bytes4 quantum = PoolRentHook.GrossBelowFeeQuantum.selector;
+        (uint256 platformCarry, uint256 projectCarry) = _carries();
 
-        // One more wei of gross now owes 2 wei, which would consume the whole executed amount.
+        assertTrue(_swapRevertsWith(true, -int256(dust), quantum), "sell leg accepted a below-quantum gross");
+        assertTrue(_swapRevertsWith(false, int256(dust), quantum), "buy leg accepted a below-quantum gross");
+
+        assertEq(hook.totalFeeOwed(), 0, "a rejected swap moved the books");
+        assertEq(hook.platformFeeCarry(), platformCarry, "a rejected swap moved the platform remainder");
+        assertEq(hook.projectFeeCarry(), projectCarry, "a rejected swap moved the project remainder");
+        _assertSolvent();
+    }
+
+    /// @dev The charge clamp — and with it the withheld-unit write-back into the carries — is
+    ///      unreachable once the fee quantum is enforced. The clamp needs a charge worth at least
+    ///      the whole executed gross, but at the quantum the charge is 2 units against 1_000, and it
+    ///      only gets smaller in relative terms above that. This walks the worst case: both
+    ///      remainders driven as high as they go, then the smallest gross the kernel will accept.
+    function test_theFeeQuantumKeepsTheChargeClampUnreachable() public {
+        uint256 quantum = hook.MIN_GROSS_QUOTE_UNITS();
+
+        // A gross of 1_999 leaves 999_000 in each remainder: one unit short of a whole one.
+        _swap(trader, false, -int256(2 * quantum - 1));
+        assertEq(hook.platformFeeCarry(), DENOMINATOR - 1_000, "platform remainder is not at its peak");
+        assertEq(hook.projectFeeCarry(), DENOMINATOR - 1_000, "project remainder is not at its peak");
+
+        // Now the smallest accepted gross, with both remainders as full as they can be.
         uint256 balanceBefore = weth.balanceOf(address(hook));
-        _swap(trader, false, -int256(uint256(1)));
+        uint256 owedBefore = hook.feeOwed(PROGRAMMABLE_OWNER);
+        _swap(trader, false, -int256(quantum));
 
-        assertEq(weth.balanceOf(address(hook)), balanceBefore, "the clamped swap still charged");
-        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), 0, "the clamped swap still credited");
-        assertEq(hook.platformFeeCarry(), DENOMINATOR, "withheld platform unit was dropped");
-        assertEq(hook.projectFeeCarry(), DENOMINATOR, "withheld project unit was dropped");
+        uint256 charged = weth.balanceOf(address(hook)) - balanceBefore;
+        assertEq(charged, 2, "the worst case did not charge one unit per side");
+        assertLt(charged, quantum, "the charge reached the executed gross, so the clamp is live again");
+        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER) - owedBefore, 1, "the platform did not take its unit");
 
-        // The parked units come straight back out on the next swap that can carry the charge.
-        _swap(trader, false, -int256(uint256(1_000)));
-        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), 2, "the parked unit never arrived");
-        assertLt(hook.platformFeeCarry(), DENOMINATOR, "the remainder did not settle back down");
-        assertLt(hook.projectFeeCarry(), DENOMINATOR, "the remainder did not settle back down");
-
-        // 2_000 wei of gross at 10 bps is exactly 2 wei, and that is what the platform holds.
-        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), (2_000 * hook.PLATFORM_RATE()) / DENOMINATOR, "entitlement lost");
+        // Nothing was withheld, so neither remainder ever holds a whole unit.
+        assertLt(hook.platformFeeCarry(), DENOMINATOR, "platform remainder holds a whole unit");
+        assertLt(hook.projectFeeCarry(), DENOMINATOR, "project remainder holds a whole unit");
         _assertSolvent();
     }
 
@@ -486,6 +514,33 @@ contract InvariantsTest is PoolRentFixture {
 
     function _carries() internal view returns (uint256 platformCarry, uint256 projectCarry) {
         return (hook.platformFeeCarry(), hook.projectFeeCarry());
+    }
+
+    /// @dev A hook revert reaches the router wrapped by the PoolManager, so match on the selector
+    ///      appearing in the reason rather than on the shape of the wrapper.
+    function _swapRevertsWith(bool zeroForOne, int256 amountSpecified, bytes4 selector) internal returns (bool) {
+        vm.prank(trader);
+        try swapRouter.swap(
+            key,
+            SwapParams({
+                zeroForOne: zeroForOne,
+                amountSpecified: amountSpecified,
+                sqrtPriceLimitX96: zeroForOne ? MIN_LIMIT : MAX_LIMIT
+            }),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            ""
+        ) returns (
+            BalanceDelta
+        ) {
+            return false;
+        } catch (bytes memory reason) {
+            for (uint256 i; i + 4 <= reason.length; ++i) {
+                bytes4 window = bytes4(reason[i]) | (bytes4(reason[i + 1]) >> 8) | (bytes4(reason[i + 2]) >> 16)
+                    | (bytes4(reason[i + 3]) >> 24);
+                if (window == selector) return true;
+            }
+            return false;
+        }
     }
 
     function _donated(Vm.Log[] memory logs) internal view returns (uint256 total) {

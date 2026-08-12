@@ -87,17 +87,17 @@
       "status": "passed",
       "result": {
         "suites": 9,
-        "passed": 208,
+        "passed": 214,
         "failed": 0,
         "skipped": 0,
         "bySuite": {
           "LaunchTest": 9,
           "SmokeTest": 8,
-          "FeeTest": 69,
+          "FeeTest": 73,
           "AuctionTest": 47,
           "AdversarialTest": 28,
-          "FuzzTest": 25,
-          "InvariantsTest": 20,
+          "FuzzTest": 26,
+          "InvariantsTest": 21,
           "ForkPinnedTest": 1,
           "ForkHeadTest": 1
         }
@@ -108,7 +108,7 @@
       "command": "forge test --match-contract FuzzTest",
       "status": "passed",
       "result": {
-        "functions": 25,
+        "functions": 26,
         "runsPerFunction": 1000,
         "failed": 0
       }
@@ -119,7 +119,7 @@
       "status": "passed",
       "result": {
         "invariants": 11,
-        "explicitRegressions": 9,
+        "explicitRegressions": 10,
         "runs": 256,
         "depth": 64,
         "callsPerInvariant": 16384,
@@ -220,6 +220,14 @@
       "status": "passed",
       "result": {
         "note": "Carried-numerator accrual. The reported scenario is pinned verbatim: 1,000 swaps of 499 wei gross pay the immutable owner exactly 499 wei, with the per-swap floor asserted to be zero first. Conservation is asserted as an equality at the library, hook and stateful-invariant levels."
+      }
+    },
+    {
+      "id": "fee-quantum",
+      "command": "forge test --match-contract FeeTest",
+      "status": "passed",
+      "result": {
+        "note": "A nonzero executed gross below MIN_GROSS_QUOTE_UNITS reverts atomically, covered on all four quadrants as dust-below-fee-quantum-atomic-revert, with the 1000/999 boundary asserted one unit apart. The carried-remainder regression moved one step above the quantum and keeps the same numbers: 1,000 swaps of 1,499 units pay 1,499 where per-swap flooring pays 1,000."
       }
     }
   ],

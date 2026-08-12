@@ -31,10 +31,10 @@ Sources under test: `src/PoolRentHook.sol`, `src/PoolRentLauncher.sol`, `src/Poo
 | --- | --: | --- | --- |
 | Launch and admission | 9 | Permission mask on the deployed address, canonical pool identity, dynamic-fee flag, seeded liquidity and default fee, single-use launcher, launcher holds no balance afterwards, rejection of a foreign currency / a foreign tick spacing / a static-fee key / a second initialization | `test/Launch.t.sol` |
 | Lifecycle smoke | 8 | All four quadrants end to end, rent reaching liquidity providers, manager setting the fee, eviction on exhaustion, and that taking the seat is never free | `test/Smoke.t.sol` |
-| Fee policy | 69 | See the mandatory-fee section below | `test/Fee.t.sol` |
+| Fee policy | 73 | See the mandatory-fee section below | `test/Fee.t.sol` |
 | Rent auction and authority | 47 | See the auction section below | `test/Auction.t.sol` |
-| Fuzz | 25 | Fee arithmetic across the full input range, swap magnitudes, bid parameters, block deltas, arbitrary `hookData` and price limits, each at 1000 runs | `test/Fuzz.t.sol` |
-| Stateful invariants | 11 invariants + 9 regressions | Solvency, conservation, liability sums, fee bounds, LP-fee bounds, exit liveness, manager consistency, no stuck value | `test/Invariants.t.sol`, `test/handlers/PoolRentHandler.sol` |
+| Fuzz | 26 | Fee arithmetic across the full input range, swap magnitudes, bid parameters, block deltas, arbitrary `hookData` and price limits, each at 1000 runs | `test/Fuzz.t.sol` |
+| Stateful invariants | 11 invariants + 10 regressions | Solvency, conservation, liability sums, fee bounds, LP-fee bounds, exit liveness, manager consistency, no stuck value | `test/Invariants.t.sol`, `test/handlers/PoolRentHandler.sol` |
 | Adversarial and failure | 28 | Misbehaving quote tokens (returns false, reverts, returns nothing, no code), a reentrant token driven against every value-moving path, foreign-PoolManager callback rejection on all four callbacks, nested-action settlement and depth, per-entry-point authentication, and a full reconstruction of hook state from emitted events alone | `test/Adversarial.t.sol` |
 | Mainnet fork | 2 | The whole lifecycle against the real PoolManager and WETH9, pinned and at head | `test/Fork.t.sol` |
 
@@ -85,13 +85,16 @@ aggregate volume owes it 499 wei, and splitting an already-floored total cannot 
 
 | Area | Cases |
 | --- | --- |
-| Sub-wei aggregation, all four quadrants | 1,000 swaps of 499 wei gross pay the platform exactly 499 wei, with `feeFromGross(499, PLATFORM_RATE) == 0` asserted first as the premise; the same per quadrant with the gross measured from the pool's own `Swap` event |
+| Fractional aggregation, all four quadrants | 1,000 swaps of 1,499 wei gross pay the platform exactly 1,499 wei where per-swap flooring pays 1,000; `feeFromGross(1499, PLATFORM_RATE) == 1` is asserted first as the premise, and the 499-unit difference the carry recovers is the identical quantity the fee-conformance review was about. The same per quadrant, with the gross measured from the pool's own `Swap` event and every slice asserted to be at or above the quantum |
+| Dust below the quantum, all four quadrants | `dust-below-fee-quantum-atomic-revert`: a remainder is built first, the dust swap reverts with the exact `GrossBelowFeeQuantum` selector at the correct hook entry point for that quadrant, and both remainders and both liabilities are unmoved |
+| Quantum boundary | A gross of exactly 1,000 is accepted and realises one whole unit on each side; 999 reverts and accrues nothing. One unit apart, both run from identical state via snapshot and revert |
+| Every accepted swap funds a whole unit | At the boundary each side realises exactly one unit with both remainders left at zero and both accruals evented — the stated purpose of the quantum rule, asserted directly |
 | Split versus whole, all four quadrants | 25 slices against one swap of the same volume: the entitlement numerator is conserved on both branches, and where the quote side is the specified currency the payout, gross and remainder match to the wei; where per-swap AMM rounding moves the executed gross, the entitlement is asserted to follow it exactly rather than being papered over |
 | Claims | A claim clears `feeOwed` and leaves both remainders standing; a 200-swap run claimed halfway through totals the same as an uninterrupted one |
 | Partial-fill rollback | On both `beforeSwap` quadrants, a remainder is built up, a partial fill is attempted and reverts, and both remainders and both liabilities are byte-identical to before |
 | Manager turnover | A half-wei project remainder built under one manager matures into the next manager's first payout rather than being forfeited; the same across an eviction; the platform side is bit-identical with and without a manager over a 40-swap run |
 | Vacant-seat routing | With no manager, `pendingRent × DENOMINATOR + projectFeeCarry == volume × PROJECT_RATE`; a full empty → seated → empty cycle conserves both numerators across three changes of destination |
-| Clamp | When the "a charge may never consume the whole executed amount" bound withholds units, they are returned to the remainders — asserted landing on exactly `DENOMINATOR` — and paid out by the next swap, with the numerator conserved throughout |
+| Clamp | The quantum makes the on-chain clamp write-back unreachable: for any accepted gross the combined charge is far below it, so the bound cannot bind. That is asserted as a 1,000-run fuzz property (`platform + project < gross` across the whole accepted range) rather than by a scenario that can no longer occur. The clamp arithmetic itself remains covered at the library level. The branch is retained as defensive depth and is documented as unreachable rather than left to look untested |
 | Fuzz | `sum(amounts) × DENOMINATOR + finalCarry == sum(gross × rate)` over random sequences including sub-wei grosses; splitting a volume into k random pieces yields exactly the same entitlement and residual remainder; `_grossForNet` round-trips so the trader receives their exact net |
 | Invariants | `credited × DENOMINATOR + carry == Σ(gross × rate)` per side over every charged swap; the realised charge satisfies `charged × DENOMINATOR + platformCarry + projectCarry == gross × TOTAL_FEE`; every non-swap action asserts both remainders are untouched, which covers claims, handovers, evictions and the vacant path in one check |
 

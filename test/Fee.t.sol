@@ -85,6 +85,13 @@ contract FeeTest is PoolRentFixture {
     /// @dev The floor Programmable enforces on any selected fee: 10 bps, owned by the platform.
     uint256 internal constant MANDATORY = 1_000;
 
+    /// @dev Smallest nonzero executed gross the fee kernel accepts. Below it a swap reverts.
+    uint256 internal constant QUANTUM = 1_000;
+
+    /// @dev One unit above the quantum, where per-swap flooring still discards a fraction: at 10 bps
+    ///      a gross of 1_499 owes 1.499 units, so flooring pays 1 and drops 0.499 every time.
+    int256 internal constant FRACTIONAL = 1_499;
+
     /// @dev Mirrors of the hook's events so the reconciliation tests can match on topics.
     event FeeAccrued(bytes32 indexed poolId, address indexed currency, address indexed beneficiary, uint256 amount);
     event FeeClaimed(
@@ -368,42 +375,46 @@ contract FeeTest is PoolRentFixture {
     /*             Sub-wei swaps still pay, on all four quadrants              */
     /* ====================================================================== */
 
-    /// @dev The maintainer's scenario, verbatim: a thousand 499-wei gross swaps each floor to zero on
-    ///      their own, yet their 499,000 wei of aggregate volume owes 499 wei at 10 bps, and it is
-    ///      paid. `oneForZero-exactInput` is used because there the gross is the specified amount, so
-    ///      the aggregate volume is exact rather than measured.
-    function test_tiny_thousandSubWeiSwapsPayTheAggregateEntitlement() public {
-        uint256 slice = 499;
+    /// @dev The maintainer's scenario, moved above the fee quantum, which is where it now lives. A
+    ///      thousand 1,499-unit gross swaps each floor to 1 unit on their own, so per-swap flooring
+    ///      pays 1,000 while the 1,499,000 units of aggregate volume owe 1,499 at 10 bps. The 499
+    ///      units the carry recovers are the identical quantity the maintainer's 499-wei example was
+    ///      about — only the fraction now sits above the quantum instead of below it.
+    ///      `oneForZero-exactInput` is used because there the gross is the specified amount, so the
+    ///      aggregate volume is exact rather than measured.
+    function test_tiny_thousandFractionalSwapsPayTheAggregateEntitlement() public {
+        uint256 slice = uint256(FRACTIONAL);
         uint256 slices = 1_000;
 
-        assertEq(PoolRentMath.feeFromGross(slice, PLATFORM_RATE), 0, "each swap floors to zero on its own");
+        assertEq(PoolRentMath.feeFromGross(slice, PLATFORM_RATE), 1, "each swap floors to one unit on its own");
 
         for (uint256 i; i < slices; ++i) {
             _swap(trader, false, -int256(slice));
         }
 
         uint256 volume = slice * slices;
-        assertEq(volume, 499_000, "the maintainer's aggregate volume");
-        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), 499, "and its 10 bps entitlement, paid in full");
+        assertEq(volume, 1_499_000, "aggregate volume");
+        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), 1_499, "its 10 bps entitlement, paid in full");
+        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER) - slices, 499, "flooring each swap would have dropped 499");
         assertEq(_platformNumerator(), volume * PLATFORM_RATE, "nothing rounded away");
-        assertEq(hook.pendingRent(), 499, "the project side is conserved the same way");
+        assertEq(hook.pendingRent(), 1_499, "the project side is conserved the same way");
         _assertSolvent();
     }
 
     function test_tiny_zeroForOneExactInput_accruesInAggregate() public {
-        _assertTinyRunPays(true, -700, 25);
+        _assertFractionalRunPays(true, -1_505, 25);
     }
 
     function test_tiny_zeroForOneExactOutput_accruesInAggregate() public {
-        _assertTinyRunPays(true, 499, 25);
+        _assertFractionalRunPays(true, FRACTIONAL, 25);
     }
 
     function test_tiny_oneForZeroExactInput_accruesInAggregate() public {
-        _assertTinyRunPays(false, -499, 25);
+        _assertFractionalRunPays(false, -FRACTIONAL, 25);
     }
 
     function test_tiny_oneForZeroExactOutput_accruesInAggregate() public {
-        _assertTinyRunPays(false, 499, 25);
+        _assertFractionalRunPays(false, FRACTIONAL, 25);
     }
 
     /* ====================================================================== */
@@ -414,19 +425,19 @@ contract FeeTest is PoolRentFixture {
     ///      either way this is exact to the wei; where it does not, the entitlement moves by exactly
     ///      the difference in executed gross and by nothing else.
     function test_conservation_zeroForOneExactInput_splitMatchesWhole() public {
-        _assertSplitMatchesWhole(true, -700, 25, false);
+        _assertSplitMatchesWhole(true, -1_505, 25, false);
     }
 
     function test_conservation_zeroForOneExactOutput_splitMatchesWhole() public {
-        _assertSplitMatchesWhole(true, 499, 25, true);
+        _assertSplitMatchesWhole(true, FRACTIONAL, 25, true);
     }
 
     function test_conservation_oneForZeroExactInput_splitMatchesWhole() public {
-        _assertSplitMatchesWhole(false, -499, 25, true);
+        _assertSplitMatchesWhole(false, -FRACTIONAL, 25, true);
     }
 
     function test_conservation_oneForZeroExactOutput_splitMatchesWhole() public {
-        _assertSplitMatchesWhole(false, 499, 25, false);
+        _assertSplitMatchesWhole(false, FRACTIONAL, 25, false);
     }
 
     /// @dev The same statement as pure arithmetic, over every slice size and slice count.
@@ -469,7 +480,7 @@ contract FeeTest is PoolRentFixture {
     /// @dev Claiming halfway through a run of sub-wei swaps must not cost the owner anything: the
     ///      total eventually paid is the same as if it had never claimed.
     function test_carry_midRunClaimDoesNotChangeTheTotal() public {
-        uint256 slice = 499;
+        uint256 slice = uint256(FRACTIONAL);
         uint256 slices = 200;
         address destination = makeAddr("platformTreasury");
 
@@ -570,7 +581,7 @@ contract FeeTest is PoolRentFixture {
     /// @dev The platform entitlement is measured on volume alone, so who holds the seat — or whether
     ///      anyone does — cannot change it.
     function test_turnover_platformSideIsIndifferentToTheSeat() public {
-        uint256 slice = 499;
+        uint256 slice = uint256(FRACTIONAL);
         uint256 slices = 40;
 
         uint256 snapshot = vm.snapshotState();
@@ -600,7 +611,7 @@ contract FeeTest is PoolRentFixture {
     ///      accrued against the same carried remainder rather than being skipped.
     function test_vacantSeat_projectRemainderStillAccruesAndConserves() public {
         assertEq(hook.manager(), address(0), "no manager");
-        uint256 slice = 499;
+        uint256 slice = uint256(FRACTIONAL);
         uint256 slices = 40;
 
         for (uint256 i; i < slices; ++i) {
@@ -622,7 +633,7 @@ contract FeeTest is PoolRentFixture {
     ///      conservation. The project share changes destination three times over the session and
     ///      still adds up.
     function test_vacantSeat_conservesAcrossAFullSeatCycle() public {
-        uint256 slice = 499;
+        uint256 slice = uint256(FRACTIONAL);
         uint256 volume;
 
         // Vacant: the project share is owed to liquidity providers and waits in `pendingRent`.
@@ -729,77 +740,95 @@ contract FeeTest is PoolRentFixture {
         assertEq(PoolRentMath.feeFromGross(0, DENOM), 0, "nothing from nothing");
     }
 
-    /// @dev When the bound withholds whole wei, they go back on the carry rather than being dropped:
-    ///      999 wei fills both remainders to one wei short of maturity, then a 1-wei swap matures
-    ///      both but cannot be charged 2 wei out of 1.
-    function test_cap_withheldUnitsGoBackOnTheCarry() public {
+    /// @dev The clamp exists so a charge can never eat the whole executed amount. Above the quantum
+    ///      it is unreachable: even with both remainders one unit short of maturing, the charge on
+    ///      the smallest accepted gross is 2 units against 1,000. The write-back path is therefore
+    ///      defensive, and the quantum — not the clamp — is what guarantees the trader keeps
+    ///      something.
+    function testFuzz_cap_quantumPutsTheChargeWellInsideTheGross(uint256 gross, uint256 carry) public pure {
+        gross = bound(gross, QUANTUM, type(uint96).max);
+        carry = bound(carry, 0, DENOM - 1);
+
+        (uint256 platform,) = PoolRentMath.accrue(gross, PLATFORM_RATE, carry);
+        (uint256 project,) = PoolRentMath.accrue(gross, PROJECT_RATE, carry);
+
+        assertLt(platform + project, gross, "the clamp never has anything to withhold");
+    }
+
+    function test_cap_smallestAcceptedSwapStillLeavesTheTraderTheBulkOfIt() public {
         _installManager();
 
-        _swap(trader, false, -999);
-        assertEq(hook.platformFeeCarry(), 999_000, "one wei short of maturity");
-        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), 0, "nothing paid yet");
+        (, int256 amm) = _swapRecorded(trader, false, -int256(QUANTUM), 0);
 
-        (uint256 platformBefore, uint256 projectBefore) = _owed();
-        BalanceDelta d = _swap(trader, false, -1);
-
-        assertEq(_quoteDelta(d), -1, "the trader still paid only its one wei");
-        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), platformBefore, "the charge could not be taken");
-        assertEq(hook.feeOwed(alice), projectBefore, "on either side");
-        assertEq(hook.platformFeeCarry(), DENOM, "so the withheld wei went back on the carry");
-        assertEq(hook.projectFeeCarry(), DENOM, "project side too");
-
-        // Nothing was lost: the very next swap pays out what the bound refused to take.
-        (uint256 platform, uint256 project) = _expected(1);
-        assertEq(platform, 1, "matured platform wei is still owed");
-        assertEq(project, 1, "matured project wei is still owed");
-        assertEq(_platformNumerator(), 1_000_000, "999 + 1 wei of volume, at 10 bps, conserved");
+        assertEq(uint256(-amm), QUANTUM - 2, "1,000 in, 2 charged, 998 to the AMM");
+        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), 1, "one whole unit funded on the platform side");
+        assertEq(hook.feeOwed(alice), 1, "and one on the project side");
         _assertSolvent();
     }
 
-    function test_dust_oneWeiQuoteInputAccruesNothing() public {
-        uint256 before = hook.feeOwed(PROGRAMMABLE_OWNER);
-        BalanceDelta d = _swap(trader, false, -1);
+    /* ------------------- dust-below-fee-quantum-atomic-revert ------------------- */
 
-        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), before, "nothing accrued");
-        assertEq(hook.platformFeeCarry(), PLATFORM_RATE, "but the entitlement was recorded");
-        assertEq(_quoteDelta(d), -1, "trader paid exactly one wei, no more");
+    /// @dev The kernel rule: a nonzero gross below the quantum reverts atomically, on every quadrant.
+    ///      The two quote-specified quadrants are caught in `beforeSwap`, where the gross is known up
+    ///      front; the other two in `afterSwap`, once the AMM has reported what it executed.
+    function test_quantum_zeroForOneExactInput_dustReverts() public {
+        _assertDustReverts(IHooks.afterSwap.selector, true, -500);
+    }
+
+    function test_quantum_zeroForOneExactOutput_dustReverts() public {
+        _assertDustReverts(IHooks.beforeSwap.selector, true, 1);
+    }
+
+    function test_quantum_oneForZeroExactInput_dustReverts() public {
+        _assertDustReverts(IHooks.beforeSwap.selector, false, -1);
+    }
+
+    function test_quantum_oneForZeroExactOutput_dustReverts() public {
+        _assertDustReverts(IHooks.afterSwap.selector, false, 500);
+    }
+
+    /// @dev One unit apart, on the quadrant where the gross is exactly the specified amount.
+    function test_quantum_boundaryIsExactlyOneThousand() public {
+        assertEq(hook.MIN_GROSS_QUOTE_UNITS(), QUANTUM, "declared quantum");
+        assertEq(QUANTUM * PLATFORM_RATE, DENOM, "which is where one whole platform unit is first funded");
+
+        uint256 snapshot = vm.snapshotState();
+        _swap(trader, false, -int256(QUANTUM));
+        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), 1, "a gross of exactly 1,000 is accepted and funds a unit");
+        vm.revertToState(snapshot);
+
+        _expectHookRevert(IHooks.beforeSwap.selector, PoolRentHook.GrossBelowFeeQuantum.selector);
+        _swap(trader, false, -int256(QUANTUM - 1));
+        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), 0, "999 reverts and accrues nothing");
         _assertSolvent();
     }
 
-    function test_dust_oneWeiOutputIsStillDelivered() public {
-        BalanceDelta quoteOut = _swap(trader, true, 1);
-        assertEq(_quoteDelta(quoteOut), 1, "one wei of quote delivered");
+    /// @dev The rule is conditioned on a nonzero gross. A swap so small the AMM moves no quote at all
+    ///      is not dust below the quantum, it is no volume, and it is left alone.
+    function test_quantum_zeroGrossIsNotDustAndIsAccepted() public {
+        BalanceDelta d = _swap(trader, true, -1);
 
-        BalanceDelta tokenOut = _swap(trader, false, 1);
-        assertEq(_tokenDelta(tokenOut), 1, "one wei of token delivered");
-        assertLt(_quoteDelta(tokenOut), 0, "and paid for, not conjured");
+        assertEq(_quoteDelta(d), 0, "the AMM moved no quote");
+        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), 0, "so nothing was charged");
+        assertEq(hook.platformFeeCarry(), 0, "and no entitlement was recorded");
+        assertEq(hook.projectFeeCarry(), 0, "on either side");
         _assertSolvent();
     }
 
-    function test_zeroCharge_subThresholdSwapPaysNoWeiButRecordsTheEntitlement() public {
-        _installManager();
-
-        (uint256 platformBefore, uint256 projectBefore) = _owed();
-        uint256 totalBefore = hook.totalFeeOwed();
-
-        // 499 wei * 1000 / 1e6 rounds to zero on both sides.
-        _swap(trader, false, -499);
-
-        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), platformBefore, "no platform wei");
-        assertEq(hook.feeOwed(alice), projectBefore, "no project wei");
-        assertEq(hook.totalFeeOwed(), totalBefore, "no liability");
-        assertEq(hook.platformFeeCarry(), 499_000, "but the platform entitlement was not thrown away");
-        assertEq(hook.projectFeeCarry(), 499_000, "nor the project's");
-        _assertSolvent();
-    }
-
-    function test_zeroCharge_emitsNoFeeAccruedEvent() public {
+    /// @dev Every accepted swap funds at least one whole unit on each side, which is the property the
+    ///      quantum exists to guarantee.
+    function test_quantum_everyAcceptedSwapFundsAWholeUnitPerSide() public {
         _installManager();
 
         vm.recordLogs();
-        _swap(trader, false, -499);
+        _swap(trader, false, -int256(QUANTUM));
+        Vm.Log[] memory logs = vm.getRecordedLogs();
 
-        assertEq(_countLogs(vm.getRecordedLogs(), FeeAccrued.selector), 0, "no phantom accrual event");
+        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), 1, "platform funded");
+        assertEq(hook.feeOwed(alice), 1, "project funded");
+        assertEq(hook.platformFeeCarry(), 0, "the quantum leaves no remainder at the boundary");
+        assertEq(hook.projectFeeCarry(), 0, "on either side");
+        assertEq(_countLogs(logs, FeeAccrued.selector), 2, "and both accruals are evented");
         _assertSolvent();
     }
 
@@ -1100,7 +1129,7 @@ contract FeeTest is PoolRentFixture {
     function test_accounting_remaindersStaySubWei() public {
         _installManager();
         for (uint256 i; i < 12; ++i) {
-            _swap(trader, false, -int256(499 + int256(i) * 137));
+            _swap(trader, false, -(FRACTIONAL + int256(i) * 137));
         }
 
         assertLt(hook.platformFeeCarry(), DENOM, "platform remainder is sub-wei");
@@ -1237,18 +1266,22 @@ contract FeeTest is PoolRentFixture {
         return _grossOf(d, amm);
     }
 
-    /// @dev A run of swaps each too small to owe a whole wei on its own must still pay the aggregate.
-    function _assertTinyRunPays(bool zeroForOne, int256 amountSpecified, uint256 slices) private {
+    /// @dev A run of swaps whose entitlement is fractional must pay the aggregate, not the sum of the
+    ///      per-swap floors. The floored model is accumulated swap by swap so the comparison is exact
+    ///      rather than taken off an average.
+    function _assertFractionalRunPays(bool zeroForOne, int256 amountSpecified, uint256 slices) private {
         uint256 volume;
+        uint256 flooredModel;
         for (uint256 i; i < slices; ++i) {
-            volume += _swapGross(trader, zeroForOne, amountSpecified);
+            uint256 gross = _swapGross(trader, zeroForOne, amountSpecified);
+            assertGe(gross, QUANTUM, "every slice clears the fee quantum");
+            volume += gross;
+            flooredModel += PoolRentMath.feeFromGross(gross, PLATFORM_RATE);
         }
 
-        uint256 perSwap = volume / slices;
-        assertEq(PoolRentMath.feeFromGross(perSwap, PLATFORM_RATE), 0, "each swap floors to zero on its own");
         assertEq(_platformNumerator(), volume * PLATFORM_RATE, "the aggregate entitlement is conserved");
-        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), volume * PLATFORM_RATE / DENOM, "and paid out in whole wei");
-        assertGt(hook.feeOwed(PROGRAMMABLE_OWNER), 0, "a run of sub-wei swaps still pays");
+        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), volume * PLATFORM_RATE / DENOM, "and paid out in whole units");
+        assertGt(hook.feeOwed(PROGRAMMABLE_OWNER), flooredModel, "beating what flooring each swap would pay");
         _assertSolvent();
     }
 
@@ -1285,6 +1318,26 @@ contract FeeTest is PoolRentFixture {
         } else {
             assertApproxEqRel(splitGross, wholeGross, 0.01e18, "the AMM executed essentially the same volume");
         }
+        _assertSolvent();
+    }
+
+    /// @dev A nonzero gross below the quantum reverts atomically, and leaves nothing behind: neither
+    ///      remainder moves and neither liability moves.
+    function _assertDustReverts(bytes4 hookFn, bool zeroForOne, int256 amountSpecified) private {
+        _installManager();
+        _swap(trader, false, -int256(uint256(FRACTIONAL)));
+
+        (uint256 platformCarry, uint256 projectCarry) = _carries();
+        (uint256 platformOwed, uint256 projectOwed) = _owed();
+        assertGt(platformCarry, 0, "there is a remainder to disturb");
+
+        _expectHookRevert(hookFn, PoolRentHook.GrossBelowFeeQuantum.selector);
+        _swap(trader, zeroForOne, amountSpecified);
+
+        assertEq(hook.platformFeeCarry(), platformCarry, "platform remainder untouched");
+        assertEq(hook.projectFeeCarry(), projectCarry, "project remainder untouched");
+        assertEq(hook.feeOwed(PROGRAMMABLE_OWNER), platformOwed, "platform liability untouched");
+        assertEq(hook.feeOwed(alice), projectOwed, "project liability untouched");
         _assertSolvent();
     }
 

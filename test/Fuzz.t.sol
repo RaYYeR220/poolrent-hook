@@ -175,7 +175,7 @@ contract FuzzTest is PoolRentFixture {
     /// @dev zeroForOne exact-input: the executed gross output is known, so the charge is carved out
     ///      of it and the trader can never end up with more than the AMM produced.
     function testFuzz_sellTokenExactInputChargesTheGrossOutput(uint256 amountIn) public {
-        uint256 size = bound(amountIn, 1, 5_000 ether);
+        uint256 size = bound(amountIn, _minSpecifiedFor(true, true), 5_000 ether);
         (uint256 platformCarry, uint256 projectCarry) = _carries();
         (BalanceDelta delta, uint256 charged) = _swapMeasured(trader, true, -int256(size));
 
@@ -193,7 +193,7 @@ contract FuzzTest is PoolRentFixture {
     /// @dev zeroForOne exact-output: only the trader's net receipt is known, so the hook solves for
     ///      the gross whose own charge leaves exactly that net, and the trader gets exactly it.
     function testFuzz_buyQuoteExactOutputGrossesUpTheCharge(uint256 amountOut) public {
-        uint256 size = bound(amountOut, 1, 1_000 ether);
+        uint256 size = bound(amountOut, _minSpecifiedFor(true, false), 1_000 ether);
         (uint256 platformCarry, uint256 projectCarry) = _carries();
         (BalanceDelta delta, uint256 charged) = _swapMeasured(trader, true, int256(size));
 
@@ -206,7 +206,7 @@ contract FuzzTest is PoolRentFixture {
     /// @dev oneForZero exact-input: the gross quote input is known up front, so the charge comes out
     ///      of it and the AMM only ever swaps the remainder.
     function testFuzz_payQuoteExactInputCarvesOutTheCharge(uint256 amountIn) public {
-        uint256 size = bound(amountIn, 1, 1_000 ether);
+        uint256 size = bound(amountIn, _minSpecifiedFor(false, true), 1_000 ether);
         (uint256 platformCarry, uint256 projectCarry) = _carries();
         (BalanceDelta delta, uint256 charged) = _swapMeasured(trader, false, -int256(size));
 
@@ -219,7 +219,7 @@ contract FuzzTest is PoolRentFixture {
     /// @dev oneForZero exact-output: the trader gets exactly the token it asked for and pays the
     ///      executed quote amount grossed up by the charge measured on that same gross.
     function testFuzz_buyTokenExactOutputGrossesUpTheCharge(uint256 amountOut) public {
-        uint256 size = bound(amountOut, 1, 1_000 ether);
+        uint256 size = bound(amountOut, _minSpecifiedFor(false, false), 1_000 ether);
         (uint256 platformCarry, uint256 projectCarry) = _carries();
         (BalanceDelta delta, uint256 charged) = _swapMeasured(trader, false, int256(size));
 
@@ -233,7 +233,7 @@ contract FuzzTest is PoolRentFixture {
 
     /// @dev Whatever the quadrant, the hook only ever touches the quote side.
     function testFuzz_chargeIsQuoteSideOnly(uint256 amount, bool zeroForOne, bool exactInput) public {
-        uint256 size = bound(amount, 1, 500 ether);
+        uint256 size = bound(amount, _minSpecifiedFor(zeroForOne, exactInput), 500 ether);
         int256 specified = exactInput ? -int256(size) : int256(size);
 
         (uint256 platformCarry, uint256 projectCarry) = _carries();
@@ -241,6 +241,37 @@ contract FuzzTest is PoolRentFixture {
 
         assertEq(token.balanceOf(address(hook)), 0, "the hook took the token side");
         _assertChargeMatchesQuadrant(zeroForOne, exactInput, size, delta, charged, platformCarry, projectCarry);
+        _assertClean();
+    }
+
+    /// @dev The fee kernel's `dust-below-fee-quantum-atomic-revert` scenario. A nonzero executed
+    ///      gross below the quantum cannot fund a whole unit of either liability, so the swap is
+    ///      rejected outright rather than executed for free — and the rejection is atomic: no
+    ///      liability, no remainder and no balance moves.
+    function testFuzz_grossBelowTheFeeQuantumRevertsAtomically(uint256 gross) public {
+        uint256 quantum = hook.MIN_GROSS_QUOTE_UNITS();
+        uint256 dust = bound(gross, 1, quantum - 1);
+        // The exact-output leg is quoted in net and the hook grosses it up before the check, so hold
+        // that leg far enough below the quantum that the solved gross stays below it too.
+        uint256 net = dust > quantum - 3 ? quantum - 3 : dust;
+
+        uint256 feesBefore = hook.totalFeeOwed();
+        uint256 balanceBefore = weth.balanceOf(address(hook));
+        (uint256 platformCarry, uint256 projectCarry) = _carries();
+
+        bytes4 quantumError = PoolRentHook.GrossBelowFeeQuantum.selector;
+        uint256 rejected;
+
+        // oneForZero exact-input: the specified quote amount is the executed gross itself.
+        if (_swapRevertsWith(false, -int256(dust), quantumError)) rejected++;
+        // zeroForOne exact-output: the gross is solved for and is never below the net asked for.
+        if (_swapRevertsWith(true, int256(net), quantumError)) rejected++;
+
+        assertEq(rejected, 2, "a below-quantum gross was accepted on one of the quote-specified legs");
+        assertEq(hook.totalFeeOwed(), feesBefore, "a rejected swap moved the books");
+        assertEq(weth.balanceOf(address(hook)), balanceBefore, "a rejected swap moved value");
+        assertEq(hook.platformFeeCarry(), platformCarry, "a rejected swap moved the platform remainder");
+        assertEq(hook.projectFeeCarry(), projectCarry, "a rejected swap moved the project remainder");
         _assertClean();
     }
 
@@ -256,8 +287,10 @@ contract FuzzTest is PoolRentFixture {
             seed = uint256(keccak256(abi.encode(seed, i)));
             bool zeroForOne = seed % 2 == 0;
             bool exactInput = (seed >> 1) % 2 == 0;
-            // Weighted small so legs that earn less than a whole wei on their own are common.
-            uint256 size = seed % 3 == 0 ? bound(seed, 1, 4_000) : bound(seed, 1, 50 ether);
+            uint256 floorSize = _minSpecifiedFor(zeroForOne, exactInput);
+            // Weighted towards the fee quantum, where a leg's entitlement has the largest fractional
+            // part and per-swap flooring would lose the most.
+            uint256 size = seed % 3 == 0 ? bound(seed, floorSize, floorSize * 4) : bound(seed, floorSize, 50 ether);
 
             (BalanceDelta delta, uint256 charged) =
                 _swapMeasured(trader, zeroForOne, exactInput ? -int256(size) : int256(size));
@@ -345,7 +378,9 @@ contract FuzzTest is PoolRentFixture {
     /// @dev An arbitrary price limit either executes with a correct charge or is rejected outright.
     ///      There is no third outcome where the books move by a wrong amount.
     function testFuzz_arbitrarySqrtPriceLimitNeverBreaksAccounting(uint160 limit, uint256 amount) public {
-        uint256 size = bound(amount, 1, 100 ether);
+        // Above the quantum on every leg; a price limit can still cut the executed gross below it,
+        // which is a clean revert like any other rejection.
+        uint256 size = bound(amount, _minSpecifiedFor(false, false), 100 ether);
         uint256 executed;
         uint256 rejected;
 
@@ -586,8 +621,49 @@ contract FuzzTest is PoolRentFixture {
         return rentPerBlock * (hook.MIN_DEPOSIT_BLOCKS() + 1);
     }
 
+    /// @dev Smallest specified amount whose executed gross clears the fee quantum. On a
+    ///      quote-specified leg the gross is the specified amount itself, so the quantum is the
+    ///      floor directly. A quote-unspecified leg only learns its gross after execution, so bound
+    ///      its input a millionfold above the quantum: no price this pool can reach brings the
+    ///      executed gross anywhere near it.
+    function _minSpecifiedFor(bool zeroForOne, bool exactInput) internal view returns (uint256) {
+        uint256 quantum = hook.MIN_GROSS_QUOTE_UNITS();
+        return zeroForOne == exactInput ? quantum * 1e6 : quantum;
+    }
+
     function _carries() internal view returns (uint256 platformCarry, uint256 projectCarry) {
         return (hook.platformFeeCarry(), hook.projectFeeCarry());
+    }
+
+    /// @dev A hook revert reaches the router wrapped by the PoolManager, so match on the selector
+    ///      appearing in the reason rather than on the shape of the wrapper.
+    function _swapRevertsWith(bool zeroForOne, int256 amountSpecified, bytes4 selector) internal returns (bool) {
+        vm.prank(trader);
+        try swapRouter.swap(
+            key,
+            SwapParams({
+                zeroForOne: zeroForOne,
+                amountSpecified: amountSpecified,
+                sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            }),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            ""
+        ) returns (
+            BalanceDelta
+        ) {
+            return false;
+        } catch (bytes memory reason) {
+            return _carriesSelector(reason, selector);
+        }
+    }
+
+    function _carriesSelector(bytes memory reason, bytes4 selector) internal pure returns (bool) {
+        for (uint256 i; i + 4 <= reason.length; ++i) {
+            bytes4 window = bytes4(reason[i]) | (bytes4(reason[i + 1]) >> 8) | (bytes4(reason[i + 2]) >> 16)
+                | (bytes4(reason[i + 3]) >> 24);
+            if (window == selector) return true;
+        }
+        return false;
     }
 
     /// @dev One quadrant against a caller-supplied price limit. Returns whether it executed; a

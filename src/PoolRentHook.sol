@@ -57,6 +57,14 @@ contract PoolRentHook is BaseHook {
     /// @notice The mandatory Programmable rate, accrued on its own numerator remainder.
     uint256 public constant PLATFORM_RATE = 1_000;
 
+    /// @notice Smallest nonzero executed gross quote amount an accepted swap may carry.
+    /// @dev A nonzero gross below this reverts atomically, so every accepted swap can fund each whole
+    ///      unit its remainders realise. At 20 bps this is the point where the charge first reaches
+    ///      one whole unit per side. On an 18-decimal quote asset it is 1e-15 of a token, so it is
+    ///      immaterial to real trading; a quote asset whose granularity made it material would need a
+    ///      different architecture rather than a silent waiver.
+    uint256 public constant MIN_GROSS_QUOTE_UNITS = 1_000;
+
     /// @notice The project rate, accrued on its own numerator remainder.
     /// @dev `PLATFORM_RATE + PROJECT_RATE == TOTAL_FEE`. The two are accrued independently rather
     ///      than by splitting one rounded total, so neither entitlement can round away and neither
@@ -179,6 +187,7 @@ contract PoolRentHook is BaseHook {
     error PartialFillRejected();
     error ZeroAddress();
     error ChargeNotConverged();
+    error GrossBelowFeeQuantum();
     error ChargeMismatch();
     error DonationMismatch();
     error SettlementMismatch();
@@ -301,6 +310,8 @@ contract PoolRentHook is BaseHook {
                 fee = gross - specified;
                 executed = gross;
             }
+            if (gross != 0 && gross < MIN_GROSS_QUOTE_UNITS) revert GrossBelowFeeQuantum();
+
             _pendingBeforeFee = fee;
             _pendingBeforeGross = gross;
             _expectedExecuted = executed;
@@ -357,6 +368,8 @@ contract PoolRentHook is BaseHook {
         _pendingBeforeFee = 0;
         _pendingBeforeGross = 0;
         _expectedExecuted = 0;
+
+        if (chargedGross != 0 && chargedGross < MIN_GROSS_QUOTE_UNITS) revert GrossBelowFeeQuantum();
 
         uint256 totalFee = beforeFee + afterFee;
         if (chargedGross != 0) {

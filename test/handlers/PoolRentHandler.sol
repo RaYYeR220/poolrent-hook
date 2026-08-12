@@ -130,11 +130,11 @@ contract PoolRentHandler is CommonBase, StdUtils {
     /* ------------------------------- actions ------------------------------ */
 
     function swapExactInput(uint256 actorSeed, bool zeroForOne, uint256 amount) external tracks(false, true) {
-        _swap(_actor(actorSeed), zeroForOne, -int256(bound(amount, 1, 200 ether)));
+        _swap(_actor(actorSeed), zeroForOne, -int256(_swapSize(actorSeed, zeroForOne, true, amount)));
     }
 
     function swapExactOutput(uint256 actorSeed, bool zeroForOne, uint256 amount) external tracks(false, true) {
-        _swap(_actor(actorSeed), zeroForOne, int256(bound(amount, 1, 200 ether)));
+        _swap(_actor(actorSeed), zeroForOne, int256(_swapSize(actorSeed, zeroForOne, false, amount)));
     }
 
     function bid(uint256 actorSeed, uint256 rent, uint256 deposit) external tracks(false, false) {
@@ -338,8 +338,25 @@ contract PoolRentHandler is CommonBase, StdUtils {
             useful++;
         } catch {
             vm.getRecordedLogs();
+            // A rejected swap — a below-quantum gross, a partial fill, a bad limit — has to leave
+            // both remainders exactly where they were.
+            if (hook.platformFeeCarry() != platformCarryBefore) ghostCarryMovedOutsideSwap++;
+            if (hook.projectFeeCarry() != projectCarryBefore) ghostCarryMovedOutsideSwap++;
             rejected++;
         }
+    }
+
+    /// @dev Mostly sizes whose executed gross clears the fee quantum, so the run does real work, and
+    ///      every so often one that cannot, so the atomic below-quantum revert is exercised too —
+    ///      that lands in the catch below as a rejected action, not a discard.
+    function _swapSize(uint256 seed, bool zeroForOne, bool exactInput, uint256 amount) private view returns (uint256) {
+        uint256 quantum = hook.MIN_GROSS_QUOTE_UNITS();
+        if (seed % 16 == 0) return bound(amount, 1, quantum - 1);
+
+        // A quote-specified leg's gross is its own specified amount; a quote-unspecified leg only
+        // learns its gross after execution, so give it a millionfold margin over the quantum.
+        uint256 floorSize = zeroForOne == exactInput ? quantum * 1e6 : quantum;
+        return bound(amount, floorSize, 200 ether);
     }
 
     /// @dev Re-derives what the two carried numerators entitled this swap to and compares it with
