@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "attestation": "builder-declared-untrusted",
   "standardVersion": "1.6.0",
-  "submissionHash": "sha256:4c80d5a26936e98a2b26abef3124eb8c249412f6121915856cd27e606b47239c",
+  "submissionHash": "sha256:0f635fdf0ec64aeeee76e5914ed26bfe9a374faa9779f4f64453f27cd7be3376",
   "validatorSha256": "sha256:06f5835d7b120a5f2d243ab5e9bfc8f8ec071006cd24d1eb5fb9d66c6c81613c",
   "schemaSha256": "sha256:fea228cbfebf4da364026aee9d8c4b34f891f085d8fa9e586a43d20f301a3bf1",
   "deploymentSnapshotSha256": "sha256:574159a71eaae0ca795e288082188505708d56660f7990f177953fa844e76da8",
   "officialDeploymentReferenceSha256": "sha256:7ab9fdd5cc59dc188d32de8236deb1ad4fab0b9fbe8fdd1e1c143b368db5f5d8",
   "policyBundleSha256": "sha256:79b4add2e09b6ac67121e15582abbd3b8212a6d8edccd922fc891b6f5a00888a",
-  "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e",
+  "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0",
   "gates": [
     {
       "id": "after-swap-return-delta-invariants",
@@ -22,8 +22,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract FeeTest && forge test --match-contract InvariantsTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "The two afterSwap-charged quadrants are asserted on the executed delta, a price-limited swap charges only what ran, and the returned unspecified delta is backed by a take of the same amount in the same callback."
@@ -40,8 +40,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract AuctionTest && forge test --match-contract InvariantsTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "Rent accrual is asserted to be exactly rent times elapsed blocks, idempotent within one block, and to charge nothing with no manager; eviction is asserted to land on the exhausting block, to cap the charge at the remaining deposit, to reset the seat and never to revert a swap."
@@ -58,8 +58,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract FeeTest && forge test --match-contract FuzzTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "The two beforeSwap-charged quadrants are asserted on the specified amount, the charge is bounded at one wei below the executed amount so a zero AMM leg cannot occur, and a partial fill on either quadrant reverts rather than charging unexecuted volume."
@@ -76,8 +76,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract LaunchTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         },
         {
           "gateId": "callback-authentication-and-permission-mask",
@@ -87,8 +87,8 @@
           "sha256": "sha256:c0c80739b1d70fa98eda538f7135b7aaf833c66f67680a0c619dbfe003bbeae6",
           "command": "forge test --match-contract AdversarialTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "The permission mask 0x30CC is asserted directly on the deployed hook address after a real launch, the hook constructor validates its own bits, pool admission rejects a foreign currency, a foreign tick spacing, a static-fee key and a second initialization, and every callback is asserted to accept only the immutable PoolManager."
@@ -105,8 +105,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract FeeTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         },
         {
           "gateId": "callback-selector-return-length-and-self-call-tests",
@@ -116,8 +116,8 @@
           "sha256": "sha256:c0c80739b1d70fa98eda538f7135b7aaf833c66f67680a0c619dbfe003bbeae6",
           "command": "forge test --match-contract AdversarialTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "Selector and return-data length are enforced by Uniswap v4 core on every callback, so the passing four-quadrant suite is the executable proof. The self-call property now has a direct test: no path in the hook reaches PoolManager.swap, and a reentering router is charged exactly once."
@@ -140,8 +140,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract InvariantsTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         },
         {
           "gateId": "delta-conservation-invariants",
@@ -151,8 +151,8 @@
           "sha256": "sha256:c0c80739b1d70fa98eda538f7135b7aaf833c66f67680a0c619dbfe003bbeae6",
           "command": "forge test --match-contract AdversarialTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "Stateful invariants assert conservation, solvency, the liability sum against its total, and that no value becomes stuck, after every generated sequence of swaps, bids, withdrawals, fee changes, claims and block rolls. The adversarial suite adds a direct assertion that a donating swap settles the hook delta to zero."
@@ -169,8 +169,8 @@
           "sha256": "sha256:c0c80739b1d70fa98eda538f7135b7aaf833c66f67680a0c619dbfe003bbeae6",
           "command": "forge test --match-contract AdversarialTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         },
         {
           "gateId": "dependency-failure-tests",
@@ -180,8 +180,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract AdversarialTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "Executed. The adversarial suite drives the two runtime dependencies through their failure modes: a quote token that returns false, one that reverts, one with no code, one that returns no data, and a silent token that must not be able to reach another account's balance. It also asserts the PoolManager reference is immutable and that a foreign PoolManager is rejected at every callback."
@@ -198,8 +198,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract AuctionTest && forge test --match-contract FuzzTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         },
         {
           "gateId": "dynamic-fee-manipulation-tests",
@@ -209,8 +209,8 @@
           "sha256": "sha256:c0c80739b1d70fa98eda538f7135b7aaf833c66f67680a0c619dbfe003bbeae6",
           "command": "forge test --match-contract AdversarialTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "The fee input is a stored parameter of a paid role rather than a pool observation, so the manipulation surface is the role itself: only the current manager may set it, an evicted manager cannot, the value is clamped, a handover resets it to the default, and the seat can only move through the auction. The adversarial suite adds a direct assertion that no entry point moves the pool price."
@@ -227,8 +227,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract AuctionTest && forge test --match-contract InvariantsTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "Both bounds are accepted, one hundredth of a bip outside either bound reverts, the stored pool fee is never mutated by the override, the default applies with no manager, and an invariant asserts the applied fee stays inside the immutable range."
@@ -245,8 +245,8 @@
           "sha256": "sha256:c0c80739b1d70fa98eda538f7135b7aaf833c66f67680a0c619dbfe003bbeae6",
           "command": "forge test --match-contract AdversarialTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         },
         {
           "gateId": "event-reorg-backfill-freshness-tests",
@@ -256,8 +256,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract AdversarialTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "Executed against the declared event contract rather than against an indexer, because this submission ships no indexer. The suite replays the emitted log stream to reconstruct hook state, asserts the replay is identical across a reorg, asserts every state-changing call emits, and names the single sub-floor write that is not anchored to an event."
@@ -274,8 +274,8 @@
           "sha256": "sha256:c0c80739b1d70fa98eda538f7135b7aaf833c66f67680a0c619dbfe003bbeae6",
           "command": "forge test --match-contract AdversarialTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         },
         {
           "gateId": "external-call-reentrancy-and-failure-tests",
@@ -285,8 +285,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract AdversarialTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "Executed. Reentrant quote-token mocks attempt to double-claim, double-withdraw, bid during a claim, poke during a withdrawal and drain the donation settlement; every one is asserted to match the sequential result or to fail closed."
@@ -303,8 +303,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract FeeTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "One test per direction and exactness mode asserts the charge lands only in the quote balance, that the launched-token balance of the hook stays zero, and which callback the charge appears in."
@@ -321,8 +321,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge fmt --check && forge build && forge build --sizes",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "forge fmt --check reported no diff, forge build compiled cleanly under the pinned settings, and forge build --sizes recorded runtime and initcode for every contract with its EIP-170 headroom."
@@ -381,8 +381,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract LaunchTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         },
         {
           "gateId": "launch-executor-pool-configuration-tests",
@@ -392,8 +392,8 @@
           "sha256": "sha256:e1fa0f2e047e012b63effaf3c871c6777f370ba6ce16e4139977c446beec6ad0",
           "command": "forge test --match-contract LaunchTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "Executed. test_launch_producesCanonicalPool in test/Launch.t.sol runs the target call against a pool that does not exist beforehand, then asserts the canonical PoolId, the dynamic-fee flag and the mined permission mask of the initialized PoolKey, and asserts the active pool liquidity is at least DECLARED_MINIMUM_INITIAL_LIQUIDITY, the constant that matches the declared pool.minimumInitialLiquidity. The fixture seeds more than that floor, so the assertion proves the floor is cleared rather than that the exact script value is used. test_launch_isSingleUse and test_hook_rejectsSecondInitializationOnAnotherTickSpacing cover the already-initialized rejection path."
@@ -428,8 +428,8 @@
           "sha256": "sha256:c0c80739b1d70fa98eda538f7135b7aaf833c66f67680a0c619dbfe003bbeae6",
           "command": "forge test --match-contract AdversarialTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         },
         {
           "gateId": "nested-action-reentrancy-tests",
@@ -439,8 +439,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract AdversarialTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "Executed. The hook's nested donate, take and settle calls are asserted to settle the hook delta to zero, to donate at most once per swap, to be unreachable from PoolManager.swap, to refuse a second unlock inside a swap, and to charge a reentering router exactly once."
@@ -481,8 +481,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract FeeTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "Zero, below, at and above the 10 bps minimum are asserted, the non-additive 3 percent example is asserted including an explicit assertion that the result is not 310000, owner-only claims are proven against the immutable constant including owner-selected destinations per claim, and the 1000-unit gross quantum is asserted on all four quadrants with the accepted and rejected boundary one unit apart."
@@ -517,8 +517,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract InvariantsTest && forge test --match-contract AuctionTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "Solvency, exit liveness and no-stuck-value are stateful invariants; deposit withdrawal to a chosen destination, an evicted manager keeping its remainder and a manager self-evicting below its floor are all asserted directly."
@@ -541,8 +541,8 @@
           "sha256": "sha256:c0c80739b1d70fa98eda538f7135b7aaf833c66f67680a0c619dbfe003bbeae6",
           "command": "forge test --match-contract AdversarialTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         },
         {
           "gateId": "project-external-call-authentication-and-failure-tests",
@@ -552,8 +552,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract AdversarialTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "Executed. Every callback is asserted to accept only the immutable PoolManager, setLpFee is manager-only, claims and withdrawals are strictly self-scoped, no permissionless call can move another account's balance, and a contract with no fallback can still manage and claim."
@@ -582,8 +582,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract InvariantsTest && forge test --match-contract FeeTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "Conservation holds across every generated sequence, the split sums exactly to the charge for every input, and claims are proven self-scoped with the platform liability unreachable by anyone else."
@@ -612,8 +612,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract InvariantsTest && forge test --match-contract FeeTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         },
         {
           "gateId": "reserve-reconstruction-and-solvency-tests",
@@ -623,8 +623,8 @@
           "sha256": "sha256:c0c80739b1d70fa98eda538f7135b7aaf833c66f67680a0c619dbfe003bbeae6",
           "command": "forge test --match-contract AdversarialTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "The solvency inequality is a stateful invariant, the liability total is asserted against the sum of its entries, a direct token transfer is asserted to create no attribution for anyone, and the adversarial suite reconstructs the whole hook state from emitted events alone."
@@ -641,8 +641,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test --match-contract FeeTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         },
         {
           "gateId": "return-delta-execution-event",
@@ -652,8 +652,8 @@
           "sha256": "sha256:c0c80739b1d70fa98eda538f7135b7aaf833c66f67680a0c619dbfe003bbeae6",
           "command": "forge test --match-contract AdversarialTest",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "FeeAccrued is asserted to sum exactly to the growth of the liability it describes, a sub-threshold swap is asserted to emit no event at all, and every state-changing call is asserted to emit."
@@ -663,6 +663,35 @@
       "status": "planned",
       "evidence": [],
       "note": "Not started. This release gate is owned by Programmable maintainers or an external reviewer and cannot be completed by a builder submission."
+    },
+    {
+      "id": "source-workflow-evidence",
+      "status": "completed",
+      "evidence": [
+        {
+          "gateId": "source-workflow-evidence",
+          "result": "passed",
+          "scope": "The successful public CI run for the source revision under test, including the fork step that executed rather than skipped. It does not cover any deployment, runtime, acceptance or routing claim.",
+          "path": ".github/workflows/ci.yml",
+          "sha256": "sha256:247f109fd52972b376721691bb7ca65fcdd65599bbdb5ab1200e3c7204154b88",
+          "command": "GitHub Actions run 31684185392",
+          "toolVersion": "github-actions ubuntu-latest",
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
+        },
+        {
+          "gateId": "source-workflow-evidence",
+          "result": "passed",
+          "scope": "The recorded local results of the same checks the workflow runs, including the fork endpoint policy.",
+          "path": "submissions/poolrent/evidence/test-evidence.json",
+          "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
+          "command": "forge fmt --check && forge build --sizes && forge test && forge lint --severity high --severity med",
+          "toolVersion": "forge 1.7.1",
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
+        }
+      ],
+      "note": "Executed. GitHub Actions run 31684185392 on the public source repository finished with conclusion success at head e8586a60325194aebe1ed6442491cadcda83d57d. Both fork tests, test_fork_pinned_fullLifecycle and test_fork_head_fullLifecycle, genuinely executed against the first candidate endpoint in that run; the step records a skip notice when no endpoint serves it, and no skip notice fired. src and test are byte-identical between that revision and the revision this submission is bound to, verified with git diff --stat e8586a60325194aebe1ed6442491cadcda83d57d HEAD -- src test, which reports no differences, so the run covers exactly the code under review. The run id is not declared in implementation.githubActionsRunIds because the builder requires a cited run head to equal the submitted revision, which no run for an earlier commit can satisfy."
     },
     {
       "id": "specialist-accounting-review",
@@ -682,8 +711,8 @@
           "sha256": "sha256:df218295a83767b9d30ed41e81950e106589a31266f77a603bc6928c5a266e1b",
           "command": "slither . --config-file slither.config.json",
           "toolVersion": "slither 0.11.6",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         },
         {
           "gateId": "static-analysis",
@@ -693,8 +722,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge lint --severity high --severity med",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "Slither was executed over the whole project: 41 contracts, 102 detectors, zero High, ten Medium, three Low and two Informational findings, each with a written technical disposition in TEST_PLAN.md."
@@ -711,8 +740,8 @@
           "sha256": "sha256:b5edcf20ee8a30e516c68792e87895906d1ac6c5ea1b9b221ebc8dfe08a3e67f",
           "command": "forge test",
           "toolVersion": "forge 1.7.1",
-          "commit": "0746b126f6b7e814a8132584bcba0380d442fe6b",
-          "reviewTargetHash": "sha256:51d72ca3b8cd989ea76da44aac8616248c40bba05b811cc8165cc183375d6d6e"
+          "commit": "bc287ef1937c582c2f2652759a164f9f0368f4ea",
+          "reviewTargetHash": "sha256:3fdd1b8ce818a892facbbd78662aa5626283b56b3d40fce6f6f04c60c01ebef0"
         }
       ],
       "note": "214 tests across 9 suites passed with zero failures and zero skips, including 26 fuzz properties at 1000 runs each and 11 stateful invariants at 256 runs and depth 64."
