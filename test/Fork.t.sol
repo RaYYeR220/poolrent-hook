@@ -190,7 +190,9 @@ contract ForkPinnedTest is ForkBase {
     uint256 internal constant PINNED_BLOCK = 25_700_000;
 
     function setUp() public {
-        vm.createSelectFork(vm.envOr("MAINNET_RPC_URL", string("https://ethereum-rpc.publicnode.com")), PINNED_BLOCK);
+        vm.createSelectFork(
+            vm.envOr("MAINNET_RPC_URL", string("https://gateway.tenderly.co/public/mainnet")), PINNED_BLOCK
+        );
         _setUpFork();
     }
 
@@ -203,7 +205,7 @@ contract ForkPinnedTest is ForkBase {
 /// @dev Compatibility with whatever is deployed right now.
 contract ForkHeadTest is ForkBase {
     function setUp() public {
-        vm.createSelectFork(vm.envOr("MAINNET_RPC_URL", string("https://ethereum-rpc.publicnode.com")));
+        vm.createSelectFork(vm.envOr("MAINNET_RPC_URL", string("https://gateway.tenderly.co/public/mainnet")));
         _setUpFork();
     }
 

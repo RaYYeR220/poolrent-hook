@@ -12,3 +12,4 @@ scratch/
 # pinned dependency checkouts, kept out of the parent index
 lib/**/.git/
 lib/**/.gitdir-hidden/
+fork.log

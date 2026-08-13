@@ -29,32 +29,34 @@ jobs:
       - name: Test
         run: forge test -vv --no-match-path 'test/Fork.t.sol'
 
-      # The fork suite is compatibility evidence against real deployed code, so it must fail loudly
-      # on a broken assertion but must not fail on a rate-limited public endpoint. Probe first, and
-      # only run it against an endpoint that actually served the pinned archive block.
+      # The fork suite is compatibility evidence against real deployed code. A broken assertion must
+      # fail the build; a free endpoint that rate limits or drops archive state must not. A single
+      # probe request cannot tell those apart — some endpoints answer one call and then return 429
+      # under the request volume a fork run generates — so the suite itself is the probe. Each
+      # candidate is tried in turn, and only a transport failure moves on to the next one.
       - name: Fork compatibility
         env:
           MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
         run: |
           set -uo pipefail
-          pinned=25700000
-          hex=$(printf '0x%x' "$pinned")
-          selected=""
-          for url in "${MAINNET_RPC_URL:-}" https://eth.drpc.org https://ethereum-rpc.publicnode.com https://eth.llamarpc.com; do
+          transport='could not instantiate forked environment|database error|HTTP error|Max retries exceeded'
+          for url in "${MAINNET_RPC_URL:-}" https://gateway.tenderly.co/public/mainnet \
+                     https://eth-mainnet.public.blastapi.io https://eth.drpc.org; do
             [ -z "$url" ] && continue
-            body=$(curl -sS --max-time 20 -X POST "$url" -H 'content-type: application/json' \
-              --data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getBlockByNumber\",\"params\":[\"$hex\",false]}" || true)
-            case "$body" in
-              *'"result":{'*) selected="$url"; break ;;
-            esac
-            echo "endpoint did not serve block $pinned: $url"
+            echo "--- fork suite against $url"
+            if MAINNET_RPC_URL="$url" forge test -vv --match-path 'test/Fork.t.sol' > fork.log 2>&1; then
+              cat fork.log
+              exit 0
+            fi
+            cat fork.log
+            if ! grep -Eq "$transport" fork.log; then
+              echo "::error title=Fork suite failed::A fork assertion failed against $url. This is not a transport problem."
+              exit 1
+            fi
+            echo "transport failure, trying the next endpoint"
           done
-          if [ -z "$selected" ]; then
-            echo "::notice title=Fork suite skipped::No reachable archive endpoint served block $pinned. Set the MAINNET_RPC_URL secret to run the fork suite here."
-            exit 0
-          fi
-          echo "archive endpoint: $selected"
-          MAINNET_RPC_URL="$selected" forge test -vv --match-path 'test/Fork.t.sol'
+          echo "::notice title=Fork suite skipped::No candidate endpoint served the pinned archive state. Set the MAINNET_RPC_URL secret to run the fork suite here."
+          exit 0
 
       - name: Lint
         run: forge lint --severity high --severity med

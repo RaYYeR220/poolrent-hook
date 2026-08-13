@@ -137,8 +137,8 @@
         "chainId": 1,
         "block": 25700000,
         "rpcClass": "public archive",
-        "rpc": "https://ethereum-rpc.publicnode.com (overridable via MAINNET_RPC_URL)",
-        "endpointPolicy": "public CI probes candidate endpoints for the pinned block before running the suite, and records a skip notice rather than a failure when none serves it; a reachable endpoint runs the assertions normally and a broken assertion still fails the build",
+        "rpc": "https://gateway.tenderly.co/public/mainnet (overridable via MAINNET_RPC_URL)",
+        "endpointPolicy": "public CI runs the suite itself against each candidate endpoint in turn, because a single probe request cannot predict whether an endpoint survives the request volume of a fork run; a transport failure moves to the next candidate and records a skip notice if none serve it, while a failed assertion fails the build against the endpoint that produced it",
         "expectedContracts": [
           "0x000000000004444c5dc75cB358380D2e3dE08A90",
           "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
