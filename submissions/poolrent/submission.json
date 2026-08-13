@@ -270,10 +270,10 @@
         "src/libraries/PoolRentMath.sol"
       ],
       "testPaths": [
+        "test/Adversarial.t.sol",
         "test/Fee.t.sol",
-        "test/Invariants.t.sol",
         "test/Fuzz.t.sol",
-        "test/Adversarial.t.sol"
+        "test/Invariants.t.sol"
       ]
     }
   },
