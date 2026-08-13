@@ -14,12 +14,17 @@ import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 contract LaunchTest is PoolRentFixture {
     using StateLibrary for IPoolManager;
 
+    /// @dev The floor the launch profile declares, matching `INITIAL_LIQUIDITY` in `script/Launch.s.sol`.
+    ///      Asserting merely that some liquidity exists would pass on a pool seeded with one wei of
+    ///      liquidity, which is not what the declared profile promises, so the floor itself is asserted.
+    uint128 internal constant DECLARED_MINIMUM_INITIAL_LIQUIDITY = 100 ether;
+
     function test_launch_producesCanonicalPool() public view {
         assertEq(uint160(address(hook)) & 0x3FFF, EXPECTED_MASK, "permission mask");
         assertTrue(hook.initialized(), "hook initialized");
         assertEq(PoolId.unwrap(hook.canonicalPoolId()), PoolId.unwrap(poolId), "canonical pool id");
         assertEq(key.fee, LPFeeLibrary.DYNAMIC_FEE_FLAG, "dynamic fee flag");
-        assertGt(_poolLiquidity(), 0, "seeded liquidity");
+        assertGe(_poolLiquidity(), DECLARED_MINIMUM_INITIAL_LIQUIDITY, "declared minimum initial liquidity");
     }
 
     function test_launch_seedsDefaultLpFee() public view {

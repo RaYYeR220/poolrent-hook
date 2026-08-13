@@ -3,7 +3,7 @@
   "attestation": "builder-declared-untrusted",
   "deploymentRecordId": "v4-poolmanager-ethereum",
   "deploymentTrustTier": "pinned-official-feed-snapshot",
-  "authorityReferenceSha256": "sha256:35e36a2837a70688104cd6a4aae3da4e1401429226c8ca15d036db4cf2195d2c",
+  "authorityReferenceSha256": "sha256:574159a71eaae0ca795e288082188505708d56660f7990f177953fa844e76da8",
   "feedSha256": "225d2c77b3b53a9c9c1a8663359577bd1f52ed0c139e10e7ee846687959282d2",
   "feedSourceRepository": "https://github.com/Uniswap/contracts",
   "feedSourceCommit": "37936185dee7decf681360ec799c124e0e034672",

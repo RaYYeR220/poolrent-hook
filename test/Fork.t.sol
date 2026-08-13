@@ -190,7 +190,7 @@ contract ForkPinnedTest is ForkBase {
     uint256 internal constant PINNED_BLOCK = 25_700_000;
 
     function setUp() public {
-        vm.createSelectFork(vm.envOr("MAINNET_RPC_URL", string("https://eth.drpc.org")), PINNED_BLOCK);
+        vm.createSelectFork(vm.envOr("MAINNET_RPC_URL", string("https://ethereum-rpc.publicnode.com")), PINNED_BLOCK);
         _setUpFork();
     }
 
@@ -203,7 +203,7 @@ contract ForkPinnedTest is ForkBase {
 /// @dev Compatibility with whatever is deployed right now.
 contract ForkHeadTest is ForkBase {
     function setUp() public {
-        vm.createSelectFork(vm.envOr("MAINNET_RPC_URL", string("https://eth.drpc.org")));
+        vm.createSelectFork(vm.envOr("MAINNET_RPC_URL", string("https://ethereum-rpc.publicnode.com")));
         _setUpFork();
     }
 

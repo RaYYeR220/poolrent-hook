@@ -1,7 +1,7 @@
 {
-  "$schema": "urn:programmable:v4-hook-submission:1.5.0",
+  "$schema": "urn:programmable:v4-hook-submission:1.6.0",
   "schemaVersion": 1,
-  "standardVersion": "1.5.0",
+  "standardVersion": "1.6.0",
   "stage": "prototype",
   "model": {
     "id": "poolrent",
@@ -165,11 +165,43 @@
       "notApplicableReason": "There is nothing to wind down or migrate. The hook, the token and the launcher are immutable, the hook keeps no position, and every unit of WETH it carries is withdrawable or claimable by its own owner at any block, so no retirement, migration or shutdown path is defined or needed."
     }
   },
+  "launchPlan": {
+    "executorVersion": "launch-authorization-executor-v1",
+    "targetStrategy": "project-supplied-atomic-launcher",
+    "targetComponent": "poolrent-launcher",
+    "callDataFunction": "deployAndLaunch((string,string,uint256,bytes32,bytes32,int24,uint160,uint128,uint256,uint256))",
+    "callDataSourcePaths": [
+      "script/Launch.s.sol",
+      "src/PoolRentLauncher.sol"
+    ],
+    "hookConfigurationRule": "The launcher deploys the hook by CREATE2 with a salt mined until the address carries exactly the declared permission bits, passing the PoolManager, both sorted currencies, the tick spacing, the start price and the quote asset as constructor immutables. The constructor rejects an unsorted pair, a zero start price or a non-positive tick spacing, and derives the canonical PoolId from those immutables, so the whole PoolKey sits inside the CREATE2 preimage. beforeInitialize then admits exactly that key exactly once. Nothing about the hook is configurable after deployment.",
+    "hookConfigurationSourcePaths": [
+      "src/PoolRentHook.sol",
+      "src/PoolRentLauncher.sol"
+    ],
+    "initialLiquidityRule": "Inside the same transaction the launcher initializes the canonical pool at the declared start price, then unlocks the PoolManager and adds one full-range position of exactly the uint128 liquidity the launch parameters carry, bounded by the declared maximum token and quote amounts. The launcher keeps that position permanently and exposes no decrease, collect, rescue, arbitrary-call, owner or upgrade path, so the seeded liquidity cannot be withdrawn. Any unexpected delta or over-budget settlement reverts the entire launch.",
+    "liquiditySourcePaths": [
+      "script/Launch.s.sol",
+      "src/PoolRentLauncher.sol"
+    ],
+    "testPaths": [
+      "test/Launch.t.sol",
+      "test/Smoke.t.sol"
+    ],
+    "nativeValueRule": "The target call takes no native value. deployAndLaunch is a non-payable external function, so any nonzero msg.value reverts before any state changes. Both currencies are ERC-20 and every amount is settled by transfer, never by native value.",
+    "minimumNativeValue": "0",
+    "maximumNativeValue": "0",
+    "nativeValueSource": "Fixed by the target function itself rather than by a parameter: deployAndLaunch in src/PoolRentLauncher.sol is not declared payable, so the Solidity-generated dispatcher rejects any nonzero value.",
+    "refundRecipientPolicy": "Every unspent unit of both currencies returns to the immutable launch wallet fixed in the launcher constructor before the transaction ends. The launcher holds no residual balance afterwards and exposes no path that could send a refund anywhere else, so there is no configurable refund recipient.",
+    "poolMustBeUninitialized": true,
+    "postAcceptanceBundleRequired": true
+  },
   "pool": {
     "currency0": "launched-token",
     "currency1": "weth9",
     "orderingRule": "The launched token's CREATE2 salt is mined until its predicted address sorts below the fixed mainnet WETH9 address, so currency0 is the launched token and currency1 is WETH9. The hook derives the ordering in its constructor and reverts if the two are not strictly ordered.",
     "tickSpacing": 60,
+    "minimumInitialLiquidity": "100000000000000000000",
     "lpFee": {
       "classification": "lp-fee",
       "mode": "dynamic",
@@ -205,12 +237,15 @@
     "poolScope": "canonical-launch-pool-key",
     "rates": {
       "unit": "hundredths-of-bip",
-      "selectedHundredthsOfBip": 2000,
+      "selectedBuyHundredthsOfBip": 2000,
+      "selectedSellHundredthsOfBip": 2000,
       "minimumEffectiveHundredthsOfBip": 1000,
-      "effectiveHundredthsOfBip": 2000,
+      "effectiveBuyHundredthsOfBip": 2000,
+      "effectiveSellHundredthsOfBip": 2000,
       "platformHundredthsOfBip": 1000,
-      "projectHundredthsOfBip": 1000,
-      "formula": "effective=max(selected,1000);platform=1000;project=effective-1000",
+      "projectBuyHundredthsOfBip": 1000,
+      "projectSellHundredthsOfBip": 1000,
+      "formula": "per-side:effective=max(selected,1000);platform=1000;project=effective-1000",
       "lpFeeExcluded": true
     },
     "basis": {
@@ -346,6 +381,7 @@
     "feeMechanism": {
       "used": true,
       "classification": "hook-owned-fee",
+      "allocationMode": "programmable-rate-formula",
       "chargedCurrency": "The canonical pool's quote asset WETH9, which is currency1: gross currency1 output on both zeroForOne modes and gross currency1 input on both oneForZero modes.",
       "swapQuadrants": {
         "zeroForOneExactInput": {
@@ -389,7 +425,7 @@
       "recipients": [
         {
           "role": "programmable-platform",
-          "sharePpm": 500000,
+          "sharePpm": null,
           "addressSource": "fixed-address",
           "address": "0x4957f49620AFf3Adbbe8195a4f633E49cc93376c",
           "binding": "exact-address",
@@ -400,12 +436,12 @@
           "mutationEvent": null
         },
         {
-          "role": "pool-manager",
-          "sharePpm": 500000,
+          "role": "project-owner",
+          "sharePpm": null,
           "addressSource": "derived-contract",
           "address": null,
           "binding": "immutable-derived-contract",
-          "derivationRule": "The project entitlement is credited to the address in the hook public manager slot at the instant of accrual, set only by the permissionless bid path and cleared only by deterministic eviction. The derivation is one storage read inside the same afterSwap callback that books the charge; there is no setter, no administrator and no way to point it elsewhere. Once credited, a balance belongs to that address forever and cannot be moved by a later seat change. While the slot is zero, and in the very block an address takes the seat, the project entitlement joins pendingRent and is donated to in-range positions instead, so no charge becomes unowned. The project carry is independent of the seat and survives a handover, an eviction and the vacant-seat path.",
+          "derivationRule": "The project entitlement is credited to the address in the hook public manager slot, the pool-manager authority, at the instant of accrual, set only by the permissionless bid path and cleared only by deterministic eviction. The derivation is one storage read inside the same afterSwap callback that books the charge; there is no setter, no administrator and no way to point it elsewhere. Once credited, a balance belongs to that address forever and cannot be moved by a later seat change. While the slot is zero, and in the very block an address takes the seat, the project entitlement joins pendingRent and is donated to in-range positions instead, so no charge becomes unowned. The project carry is independent of the seat and survives a handover, an eviction and the vacant-seat path.",
           "mutable": false,
           "mutationController": "none",
           "newAddressValidation": "none",
@@ -1678,7 +1714,9 @@
     },
     "crossChain": {
       "used": false,
-      "bridgeDependencyId": null,
+      "direction": null,
+      "localBridgeDependencyId": null,
+      "localBridgeAddress": null,
       "source": {
         "network": {
           "namespace": null,
@@ -1692,11 +1730,16 @@
         }
       },
       "destination": {
-        "chainId": null,
+        "network": {
+          "namespace": null,
+          "reference": null
+        },
         "domain": null,
-        "receiver": null,
-        "receiverDependencyId": null,
-        "authenticatedBridgeCaller": null
+        "receiver": {
+          "encoding": null,
+          "value": null,
+          "canonicalizationRule": null
+        }
       },
       "message": {
         "identifierDerivation": null,
@@ -1709,14 +1752,13 @@
         "atomicConsumption": null,
         "duplicateBehavior": null,
         "domainBindings": {
-          "bridgeDependencyId": null,
+          "localBridgeDependencyId": null,
           "sourceNetwork": null,
           "sourceDomain": null,
           "sourceSender": null,
-          "destinationChainId": null,
+          "destinationNetwork": null,
           "destinationDomain": null,
-          "receiver": null,
-          "receiverDependencyId": null,
+          "destinationReceiver": null,
           "modelId": null,
           "poolId": null,
           "action": null,

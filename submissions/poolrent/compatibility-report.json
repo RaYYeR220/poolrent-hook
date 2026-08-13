@@ -1,13 +1,13 @@
 {
   "reportVersion": 3,
-  "standardVersion": "1.5.0",
-  "submissionHash": "sha256:17c29945e151af518f9d90ac6688f3ba0bd2b35b133a278ff6a790ef9508a346",
+  "standardVersion": "1.6.0",
+  "submissionHash": "sha256:0126bb620315247ff9d7588a901d62b8de98b246cf9a7e747db1f007f2e256f9",
   "toolchain": {
-    "validatorSha256": "sha256:2b9befc32be4b3a8267c9c9c4fe8cb36dcc53aef518f7c8216c0edda06732d61",
-    "schemaSha256": "sha256:67e839128136fbffa8d9d6551a75c1988e55a3a74a0827359826e1449201cc45",
-    "deploymentSnapshotSha256": "sha256:35e36a2837a70688104cd6a4aae3da4e1401429226c8ca15d036db4cf2195d2c",
-    "officialDeploymentReferenceSha256": "sha256:ef7e12bf1312edf374749bfeb18ac41cb83623856fbfd39892606579b7119fd6",
-    "policyBundleSha256": "sha256:70e4fc0edf0d1227ea609f72fbac746993f223e139260fb9fc8f7a5198862981"
+    "validatorSha256": "sha256:06f5835d7b120a5f2d243ab5e9bfc8f8ec071006cd24d1eb5fb9d66c6c81613c",
+    "schemaSha256": "sha256:fea228cbfebf4da364026aee9d8c4b34f891f085d8fa9e586a43d20f301a3bf1",
+    "deploymentSnapshotSha256": "sha256:574159a71eaae0ca795e288082188505708d56660f7990f177953fa844e76da8",
+    "officialDeploymentReferenceSha256": "sha256:7ab9fdd5cc59dc188d32de8236deb1ad4fab0b9fbe8fdd1e1c143b368db5f5d8",
+    "policyBundleSha256": "sha256:79b4add2e09b6ac67121e15582abbd3b8212a6d8edccd922fc891b6f5a00888a"
   },
   "decision": "PROTOTYPE_READY",
   "decisionCompatibility": "LEGACY_COMPATIBILITY_ONLY",
@@ -35,9 +35,28 @@
       "path": "$.hook.permissions.beforeSwapReturnDelta",
       "message": "beforeSwapReturnDelta can bypass concentrated-liquidity swap math and create a no-op swap.",
       "remediation": "Prove all four swap quadrants, backing, partial fills, slippage and zero-sum settlement with specialist review."
+    },
+    {
+      "severity": "warning",
+      "code": "PROGRAMMABLE_FEE_CONFORMANCE_EVIDENCE_MISSING",
+      "path": "$.implementation.feeConformanceManifestPath",
+      "message": "The prototype declares the mandatory Programmable fee implemented but does not bind a structural fee-conformance manifest.",
+      "remediation": "Generate the fee-conformance manifest from the exact source, factory, artifact, build info and named test evidence, then bind its repository path. This remains builder-supplied evidence until maintainers rebuild it independently."
+    },
+    {
+      "severity": "warning",
+      "code": "SOURCE_WORKFLOW_EVIDENCE_MISSING",
+      "path": "$.implementation.githubActionsRunIds",
+      "message": "The prototype has no exact successful source-repository workflow run bound to its reviewed commit.",
+      "remediation": "Run a credential-free build and test workflow at the exact public commit, then record its GitHub Actions run id. Registry intake checks validate the package only and are not project code tests."
     }
   ],
   "requiredGates": [
+    {
+      "id": "custom-programmable-fee-review",
+      "stage": "candidate",
+      "reason": "An implemented platform fee without the standard structural receipt needs exact maintainer review; a custom implementation stays eligible and is not labeled unsafe."
+    },
     {
       "id": "human-economic-and-security-review",
       "stage": "candidate",
@@ -179,6 +198,11 @@
       "reason": "Every prototype must pass its declared language build and size checks without unexplained warnings."
     },
     {
+      "id": "launch-executor-pool-configuration-tests",
+      "stage": "prototype",
+      "reason": "The exact target call must start from an absent pool, initialize the declared PoolKey and leave at least minimumInitialLiquidity active."
+    },
+    {
       "id": "nested-action-reentrancy-tests",
       "stage": "prototype",
       "reason": "The hook initiates nested actions."
@@ -214,6 +238,11 @@
       "reason": "Core Swap events do not fully describe the custom leg."
     },
     {
+      "id": "source-workflow-evidence",
+      "stage": "prototype",
+      "reason": "A prototype needs exact builder-owned build and test workflow evidence; the central Registry never executes untrusted project code."
+    },
+    {
       "id": "static-analysis",
       "stage": "prototype",
       "reason": "Declared Solidity source needs static findings with dispositions."
@@ -232,6 +261,11 @@
       "id": "monitoring-and-lifecycle-evidence",
       "stage": "release",
       "reason": "Availability requires operational evidence after deployment."
+    },
+    {
+      "id": "post-acceptance-launch-bundle-verification",
+      "stage": "release",
+      "reason": "Real Registry acceptance, runtime addresses, code hashes, hermetic build evidence and fee-conformance evidence are external authority inputs and must be independently verified before authorization."
     },
     {
       "id": "production-anomaly-monitoring",
