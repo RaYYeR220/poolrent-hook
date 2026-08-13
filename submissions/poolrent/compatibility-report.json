@@ -1,7 +1,7 @@
 {
   "reportVersion": 3,
   "standardVersion": "1.6.0",
-  "submissionHash": "sha256:0126bb620315247ff9d7588a901d62b8de98b246cf9a7e747db1f007f2e256f9",
+  "submissionHash": "sha256:4c80d5a26936e98a2b26abef3124eb8c249412f6121915856cd27e606b47239c",
   "toolchain": {
     "validatorSha256": "sha256:06f5835d7b120a5f2d243ab5e9bfc8f8ec071006cd24d1eb5fb9d66c6c81613c",
     "schemaSha256": "sha256:fea228cbfebf4da364026aee9d8c4b34f891f085d8fa9e586a43d20f301a3bf1",
@@ -42,13 +42,6 @@
       "path": "$.implementation.feeConformanceManifestPath",
       "message": "The prototype declares the mandatory Programmable fee implemented but does not bind a structural fee-conformance manifest.",
       "remediation": "Generate the fee-conformance manifest from the exact source, factory, artifact, build info and named test evidence, then bind its repository path. This remains builder-supplied evidence until maintainers rebuild it independently."
-    },
-    {
-      "severity": "warning",
-      "code": "SOURCE_WORKFLOW_EVIDENCE_MISSING",
-      "path": "$.implementation.githubActionsRunIds",
-      "message": "The prototype has no exact successful source-repository workflow run bound to its reviewed commit.",
-      "remediation": "Run a credential-free build and test workflow at the exact public commit, then record its GitHub Actions run id. Registry intake checks validate the package only and are not project code tests."
     }
   ],
   "requiredGates": [
@@ -236,11 +229,6 @@
       "id": "return-delta-execution-event",
       "stage": "prototype",
       "reason": "Core Swap events do not fully describe the custom leg."
-    },
-    {
-      "id": "source-workflow-evidence",
-      "stage": "prototype",
-      "reason": "A prototype needs exact builder-owned build and test workflow evidence; the central Registry never executes untrusted project code."
     },
     {
       "id": "static-analysis",
